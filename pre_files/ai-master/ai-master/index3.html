@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AI 编程学习工具 - 先序递归引导 + 知识图谱 (API版)</title>
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/editor/editor.main.min.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f5f7fb; height: 100vh; overflow: hidden; }
+        .app { display: flex; height: 100vh; width: 100%; }
+        .editor-area { flex: 5; display: flex; flex-direction: column; border-right: 1px solid #e1e4e8; background: #1e1e1e; }
+        .editor-header { padding: 12px 16px; background: #252526; color: #cccccc; font-size: 13px; font-weight: 500; border-bottom: 1px solid #3e3e42; }
+        #editor { flex: 1; width: 100%; }
+        .right-area { flex: 4; display: flex; flex-direction: column; background: #ffffff; }
+        .chat-area { flex: 3; display: flex; flex-direction: column; border-bottom: 1px solid #e9ecef; background: #fefefe; }
+        .chat-header { padding: 12px 16px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+        .back-to-main { background: #e9ecef; border: none; padding: 4px 10px; border-radius: 16px; font-size: 12px; cursor: pointer; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .message { max-width: 85%; padding: 8px 12px; border-radius: 18px; font-size: 14px; line-height: 1.4; }
+        .user { align-self: flex-end; background: #007aff; color: white; border-bottom-right-radius: 4px; }
+        .ai { align-self: flex-start; background: #e9ecef; color: #1e1e1e; border-bottom-left-radius: 4px; }
+        .ai button { background: white; border: 1px solid #ced4da; border-radius: 20px; padding: 4px 12px; margin-top: 8px; margin-right: 8px; cursor: pointer; font-size: 12px; }
+        .input-area { display: flex; padding: 12px; border-top: 1px solid #e9ecef; background: white; }
+        #chat-input { flex: 1; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 24px; outline: none; font-size: 14px; }
+        #send-btn { margin-left: 8px; background: #007aff; border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 18px; }
+        .preset-questions { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 12px; border-top: 1px solid #e9ecef; background: #f8f9fa; }
+        .preset-btn { background: #e9ecef; border: none; border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+        .knowledge-area { flex: 2; background: #ffffff; display: flex; flex-direction: column; border-top: 1px solid #e9ecef; }
+        .knowledge-header { padding: 10px 16px; font-weight: 600; font-size: 13px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+        #graph-container { flex: 1; min-height: 200px; background: #fefefe; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="editor-area">
+        <div class="editor-header">📝 代码编辑器 · 内联引导注释</div>
+        <div id="editor"></div>
+    </div>
+    <div class="right-area">
+        <div class="chat-area">
+            <div class="chat-header">
+                💬 对话引导（先序递归深度优先）
+                <button class="back-to-main" id="backToMainBtn">↺ 返回主干</button>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message ai">👋 正在初始化，请稍候...</div>
+            </div>
+            <div class="preset-questions" id="presetQuestions">
+                <button class="preset-btn" data-question="我不懂循环边界">🔁 我不懂循环边界</button>
+                <button class="preset-btn" data-question="什么是二分查找原理">📘 什么是二分查找原理</button>
+                <button class="preset-btn" data-question="如何优化这段代码">⚡ 如何优化这段代码</button>
+            </div>
+            <div class="input-area">
+                <input type="text" id="chat-input" placeholder="输入你的问题或回复...">
+                <button id="send-btn">➤</button>
+            </div>
+        </div>
+        <div class="knowledge-area">
+            <div class="knowledge-header">🧠 知识图谱（点击节点可讲解）</div>
+            <div id="graph-container"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+    // ======================= 配置区 =======================
+    const API_BASE_URL = "https://api.deepseek.com/v1";   // 请替换为真实后端地址
+    const API_KEY = ;                              // 请替换为真实 API Key
+
+    // 通用 API 调用函数
+    async function callAPI(endpoint, data) {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_KEY}`
+            },
+            body: JSON.stringify(data)
+        });
+        const json = await response.json();
+        if (!json.success) throw new Error(json.message || "API error");
+        return json.data;
+    }
+
+    // 全局状态
+    let sessionId = null;           // 会话ID，首次初始化时从后端获取或前端生成
+    let currentGuideNodes = [];     // 先序节点列表
+    let currentNodeIndex = 0;       // 当前讲解到第几个节点
+    let waitingForAck = false;      // 是否等待用户确认“理解了”
+    let editor = null;
+    let currentDecorations = [];
+    let knowledgeGraphData = null;   // 图谱数据
+
+    // 生成简单的 session ID（前端生成，也可由后端返回）
+    function generateSessionId() {
+        return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+    }
+
+    // 初始化：调用 /init 接口获取疑难点、装饰、图谱
+    async function initialize(code) {
+        try {
+            const initData = await callAPI('/init', { code: code, language: 'python' });
+            // 保存先序节点列表
+            currentGuideNodes = initData.preorder_nodes || [];
+            currentNodeIndex = 0;
+            waitingForAck = false;
+            // 添加内联注释
+            if (editor && initData.decorations) {
+                const decorations = initData.decorations.map(d => ({
+                    range: new monaco.Range(d.line, d.column_start, d.line, d.column_end),
+                    options: { before: { content: d.message } }
+                }));
+                currentDecorations = editor.deltaDecorations(currentDecorations, decorations);
+            }
+            // 保存知识图谱数据并渲染
+            knowledgeGraphData = initData.knowledge_graph;
+            renderKnowledgeGraph(knowledgeGraphData);
+            // 清空聊天记录，添加欢迎语
+            const chatContainer = document.getElementById('chatMessages');
+            chatContainer.innerHTML = '<div class="message ai">👋 初始化完成！我将按照“先讲第一个难点 → 子难点深度优先 → 再讲下一个”的方式引导你。</div>';
+            // 开始第一个难点
+            if (currentGuideNodes.length > 0) {
+                startNextGuide();
+            } else {
+                addAIMessage("✅ 未发现明显疑难点，你可以尝试修改代码或提问。");
+            }
+        } catch (err) {
+            console.error("初始化失败", err);
+            addAIMessage("❌ 初始化失败，请检查 API 配置或网络。");
+        }
+    }
+
+    // 开始讲解下一个难点（深度优先顺序）
+    function startNextGuide() {
+        if (waitingForAck) {
+            addAIMessage("⚠️ 请先确认当前问题是否理解（点击“理解了”）。");
+            return;
+        }
+        if (currentNodeIndex >= currentGuideNodes.length) {
+            addAIMessage("🎉 太好了！所有疑难点已讲解完毕。你可以继续修改代码或提出新问题。");
+            return;
+        }
+        const node = currentGuideNodes[currentNodeIndex];
+        // 发送引导消息
+        const message = `📌 **${node.name}**\n${node.description}\n\n你理解了吗？或者需要更具体的提示？`;
+        addAIMessage(message, [
+            { label: "✅ 理解了，继续下一个", onClick: () => handleUnderstand(node.id) },
+            { label: "❓ 需要提示", onClick: () => requestHint(node.id) }
+        ]);
+        waitingForAck = true;
+        // 高亮图谱中对应节点
+        highlightNodeInGraph(node.id);
+    }
+
+    // 用户点击“理解了”
+    async function handleUnderstand(nodeId) {
+        if (!waitingForAck) return;
+        // 调用对话接口，报告用户理解
+        try {
+            const chatData = await callAPI('/chat', {
+                session_id: sessionId,
+                current_node_id: nodeId,
+                user_message: "理解了",
+                chat_history: []  // 可选，可传最近几条记录
+            });
+            // 根据后端返回执行动作
+            if (chatData.action === 'next_node') {
+                waitingForAck = false;
+                currentNodeIndex++;
+                startNextGuide();
+            } else if (chatData.action === 'give_hint') {
+                addAIMessage(chatData.reply || "点击了理解，但后端要求继续提示？");
+            } else if (chatData.action === 'reset') {
+                resetGuide();
+            } else {
+                // 默认推进
+                waitingForAck = false;
+                currentNodeIndex++;
+                startNextGuide();
+            }
+            if (chatData.is_finished) {
+                addAIMessage("🎉 所有难点已讲解完毕！");
+            }
+        } catch (err) {
+            console.error(err);
+            addAIMessage("网络错误，请稍后重试。");
+        }
+    }
+
+    // 请求提示
+    async function requestHint(nodeId) {
+        if (!waitingForAck) return;
+        try {
+            const chatData = await callAPI('/chat', {
+                session_id: sessionId,
+                current_node_id: nodeId,
+                user_message: "需要提示",
+                chat_history: []
+            });
+            if (chatData.action === 'give_hint' && chatData.hint_text) {
+                addAIMessage(chatData.hint_text);
+            } else {
+                addAIMessage("💡 提示：请再仔细想想，或者尝试运行代码观察输出。");
+            }
+        } catch (err) {
+            addAIMessage("获取提示失败，请稍后重试。");
+        }
+    }
+
+    // 用户自由提问
+    async function handleUserQuestion(questionText) {
+        addUserMessage(questionText);
+        try {
+            const chatData = await callAPI('/chat', {
+                session_id: sessionId,
+                current_node_id: (currentNodeIndex < currentGuideNodes.length) ? currentGuideNodes[currentNodeIndex].id : null,
+                user_message: questionText,
+                chat_history: []
+            });
+            addAIMessage(chatData.reply);
+            // 如果后端要求跳转到下一个节点等动作，可在此处理
+            if (chatData.action === 'next_node' && !waitingForAck) {
+                currentNodeIndex++;
+                startNextGuide();
+            } else if (chatData.action === 'reset') {
+                resetGuide();
+            }
+        } catch (err) {
+            addAIMessage("抱歉，处理你的问题时出错。");
+        }
+    }
+
+    // 重置引导（返回主干）
+    async function resetGuide() {
+        currentNodeIndex = 0;
+        waitingForAck = false;
+        addAIMessage("🔄 已重置引导顺序。我们将从头开始按照先序递归方式讲解难点。");
+        startNextGuide();
+    }
+
+    // 辅助UI函数
+    function addUserMessage(text) {
+        const container = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        div.className = 'message user';
+        div.innerText = text;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+    function addAIMessage(text, buttons = null) {
+        const container = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        div.className = 'message ai';
+        div.innerHTML = text;
+        if (buttons && buttons.length) {
+            const btnContainer = document.createElement('div');
+            buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.textContent = btn.label;
+                button.onclick = btn.onClick;
+                btnContainer.appendChild(button);
+            });
+            div.appendChild(btnContainer);
+        }
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // 知识图谱渲染
+    let svg;
+    function renderKnowledgeGraph(graphData) {
+        if (!graphData || !graphData.nodes) return;
+        const container = document.getElementById('graph-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        d3.select("#graph-container svg").remove();
+        // 构建层级结构
+        const nodeMap = new Map();
+        graphData.nodes.forEach(n => nodeMap.set(n.id, { ...n, children: [] }));
+        const roots = [];
+        graphData.nodes.forEach(n => {
+            if (n.parent && nodeMap.has(n.parent)) {
+                nodeMap.get(n.parent).children.push(nodeMap.get(n.id));
+            } else {
+                roots.push(nodeMap.get(n.id));
+            }
+        });
+        const root = roots[0]; // 假设只有一个根
+        const hierarchy = d3.hierarchy(root);
+        const treeLayout = d3.tree().size([height - 80, width - 120]);
+        treeLayout(hierarchy);
+        svg = d3.select("#graph-container")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .append("g")
+            .attr("transform", "translate(40,40)");
+        svg.selectAll(".link")
+            .data(hierarchy.links())
+            .enter()
+            .append("path")
+            .attr("class", "link")
+            .attr("fill", "none")
+            .attr("stroke", "#ccc")
+            .attr("stroke-width", 1.5)
+            .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
+        const nodes = svg.selectAll(".node")
+            .data(hierarchy.descendants())
+            .enter()
+            .append("g")
+            .attr("class", "node")
+            .attr("transform", d => `translate(${d.y},${d.x})`)
+            .on("click", async (event, d) => {
+                // 点击节点，调用 /graph/click 接口获取解释
+                try {
+                    const data = await callAPI('/graph/click', { session_id: sessionId, node_id: d.data.id });
+                    addAIMessage(`📖 **${d.data.name}**：${data.explanation || "暂无详细说明。"}`);
+                } catch (err) {
+                    addAIMessage(`无法获取 ${d.data.name} 的解释。`);
+                }
+            });
+        nodes.append("circle")
+            .attr("r", 8)
+            .attr("fill", "#4caf50")
+            .attr("stroke", "white")
+            .attr("stroke-width", 2);
+        nodes.append("text")
+            .attr("dy", ".35em")
+            .attr("x", 12)
+            .text(d => d.data.name)
+            .style("font-size", "12px")
+            .style("fill", "#333");
+    }
+    function highlightNodeInGraph(nodeId) {
+        if (!svg) return;
+        svg.selectAll("circle").attr("fill", d => d.data.id === nodeId ? "#ff9800" : "#4caf50");
+    }
+
+    // 初始化 Monaco 编辑器，并调用初始化接口
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+        editor = monaco.editor.create(document.getElementById('editor'), {
+            value: `def binary_search(arr, target):
+    left = 0
+    right = len(arr) - 1
+    while left < right:
+        mid = (left + right) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid
+        else:
+            right = mid
+    return len(arr)`,
+            language: 'python',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            lineNumbers: 'on'
+        });
+        sessionId = generateSessionId();
+        initialize(editor.getValue());
+        // 监听代码变化（可选，重新初始化）
+        editor.onDidChangeModelContent(() => {
+            // 为了避免频繁请求，可增加防抖
+            clearTimeout(window.codeChangeTimeout);
+            window.codeChangeTimeout = setTimeout(() => {
+                initialize(editor.getValue());
+            }, 1000);
+        });
+    });
+
+    // 事件绑定
+    document.getElementById('send-btn').onclick = () => {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (text === "") return;
+        handleUserQuestion(text);
+        input.value = "";
+    };
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.onclick = () => {
+            const q = btn.getAttribute('data-question');
+            handleUserQuestion(q);
+        };
+    });
+    document.getElementById('backToMainBtn').onclick = () => resetGuide();
+
+    // 窗口大小变化时重绘图谱
+    window.addEventListener('resize', () => {
+        if (knowledgeGraphData) renderKnowledgeGraph(knowledgeGraphData);
+    });
+</script>
+</body>
+</html>

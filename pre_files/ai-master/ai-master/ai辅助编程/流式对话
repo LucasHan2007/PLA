@@ -1,0 +1,33 @@
+from openai import OpenAI
+import os
+import functions
+client = OpenAI(
+    base_url="https://api.deepseek.com/v1",
+    api_key=os.getenv("墙木的key")
+)
+# 初始对话历史
+messages = [{"role": "system", "content": "你是一个助手"}]
+while True:
+    input_word = input("\n你: ")
+    if input_word == "退出":
+        break
+    messages.append({"role": "user", "content": input_word})   # 加用户的话
+    response = client.chat.completions.create(
+        model="deepseek-v4-pro",
+        messages=messages,
+        stream=True,
+    )
+    history = ""
+    print("助手:", end=' ', flush=True)
+    for chunk in response:
+        if chunk.choices[0].delta.content:
+            context=chunk.choices[0].delta.content
+            print(context, end='', flush=True)
+            history += context
+    messages.append({"role": "assistant", "content": history})  # 加助手的回复
+print("\n对话结束。")
+print(messages)
+tempt=input("\n是否保存对话历史(Y?N)")
+if tempt == "Y" or tempt == "y":
+    history=functions.message_to_string(messages)
+    functions.save_history(history[1],history[0])

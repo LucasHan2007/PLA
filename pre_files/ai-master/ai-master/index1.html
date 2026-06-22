@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AI 编程学习工具 - 先序递归引导 + 知识图谱</title>
+    <!-- Monaco Editor 核心库 -->
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/editor/editor.main.min.css">
+    <!-- D3.js 用于知识图谱 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f7fb;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 三栏布局 */
+        .app {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* 左侧代码区 */
+        .editor-area {
+            flex: 5;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e1e4e8;
+            background: #1e1e1e; /* Monaco 默认深色背景，也便于区分 */
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+        }
+        .editor-header {
+            padding: 12px 16px;
+            background: #252526;
+            color: #cccccc;
+            font-size: 13px;
+            font-weight: 500;
+            border-bottom: 1px solid #3e3e42;
+        }
+        #editor {
+            flex: 1;
+            width: 100%;
+        }
+
+        /* 右侧上下分区 */
+        .right-area {
+            flex: 4;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+        }
+
+        /* 对话区 */
+        .chat-area {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid #e9ecef;
+            background: #fefefe;
+        }
+        .chat-header {
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .back-to-main {
+            background: #e9ecef;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #495057;
+        }
+        .back-to-main:hover {
+            background: #dee2e6;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 85%;
+            padding: 8px 12px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .user {
+            align-self: flex-end;
+            background: #007aff;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .ai {
+            align-self: flex-start;
+            background: #e9ecef;
+            color: #1e1e1e;
+            border-bottom-left-radius: 4px;
+        }
+        .ai button {
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 20px;
+            padding: 4px 12px;
+            margin-top: 8px;
+            margin-right: 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .ai button:hover {
+            background: #f1f3f5;
+        }
+        .input-area {
+            display: flex;
+            padding: 12px;
+            border-top: 1px solid #e9ecef;
+            background: white;
+        }
+        #chat-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 24px;
+            outline: none;
+            font-size: 14px;
+        }
+        #send-btn {
+            margin-left: 8px;
+            background: #007aff;
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        .preset-questions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 8px 12px;
+            border-top: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+        .preset-btn {
+            background: #e9ecef;
+            border: none;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        /* 知识图谱区 */
+        .knowledge-area {
+            flex: 2;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid #e9ecef;
+        }
+        .knowledge-header {
+            padding: 10px 16px;
+            font-weight: 600;
+            font-size: 13px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        #graph-container {
+            flex: 1;
+            min-height: 200px;
+            background: #fefefe;
+        }
+        .node-tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.75);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <!-- 左侧代码编辑器 -->
+    <div class="editor-area">
+        <div class="editor-header">📝 代码编辑器 · 内联引导注释</div>
+        <div id="editor" style="height: 100%;"></div>
+    </div>
+
+    <!-- 右侧上下区 -->
+    <div class="right-area">
+        <!-- 对话区 -->
+        <div class="chat-area">
+            <div class="chat-header">
+                💬 对话引导（先序递归深度优先）
+                <button class="back-to-main" id="backToMainBtn">↺ 返回主干</button>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message ai">👋 你好！我会按照“先讲第一个难点 → 子难点深度优先 → 再讲下一个”的方式引导你。点击下方预设问题，或直接在代码区提问。</div>
+            </div>
+            <div class="preset-questions" id="presetQuestions">
+                <button class="preset-btn" data-question="我不懂循环边界">🔁 我不懂循环边界</button>
+                <button class="preset-btn" data-question="什么是二分查找原理">📘 什么是二分查找原理</button>
+                <button class="preset-btn" data-question="如何优化这段代码">⚡ 如何优化这段代码</button>
+            </div>
+            <div class="input-area">
+                <input type="text" id="chat-input" placeholder="输入你的问题或回复...">
+                <button id="send-btn">➤</button>
+            </div>
+        </div>
+
+        <!-- 知识图谱区 -->
+        <div class="knowledge-area">
+            <div class="knowledge-header">🧠 知识图谱（点击节点可讲解）</div>
+            <div id="graph-container"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+    // ======================= 模拟数据：难点树（先序递归遍历用）=======================
+    // 预定义针对示例代码的难点树结构
+    const difficultyTree = {
+        id: "root",
+        name: "二分查找代码分析",
+        children: [
+            {
+                id: "A",
+                name: "循环边界条件",
+                description: "while left <= right 还是 left < right？不同的边界会导致漏掉元素或死循环。",
+                children: [
+                    { id: "A1", name: "为什么用 <= 而不是 <", description: "当搜索区间为闭区间时，left == right 时还有一个元素待检查。", children: [] },
+                    { id: "A2", name: "mid 计算溢出风险", description: "mid = (left+right)//2 在极端大数时可能溢出，建议 mid = left + (right-left)//2", children: [] }
+                ]
+            },
+            {
+                id: "B",
+                name: "未找到时的返回值",
+                description: "当目标不存在时，应该返回 -1 或插入点，当前代码返回了 len(arr) 是不正确的。",
+                children: []
+            },
+            {
+                id: "C",
+                name: "mid 更新逻辑",
+                description: "if target > arr[mid] 应该 left = mid + 1，否则 right = mid - 1。如果写错会导致死循环。",
+                children: []
+            }
+        ]
+    };
+
+    // 生成先序遍历顺序（深度优先）列表
+    let preorderList = [];
+    function buildPreorder(node, list) {
+        list.push({ id: node.id, name: node.name, description: node.description, depth: 0 }); // 简化 depth
+        if (node.children) {
+            for (let child of node.children) {
+                buildPreorder(child, list);
+            }
+        }
+    }
+    buildPreorder(difficultyTree, preorderList);
+    // 过滤掉 root 本身
+    const guideNodes = preorderList.filter(n => n.id !== "root");
+    console.log("引导顺序（先序）:", guideNodes.map(n=>n.id));
+
+    // 会话状态管理
+    let currentGuideIndex = 0;           // 当前正在讲解的节点索引（先序顺序）
+    let waitingForAck = false;            // 是否等待用户确认“理解了”
+    let contextHistory = [];               // 简易上下文，存储对话历史
+    let inBranch = false;                 // 是否在分支对话中（实际上先序本身就是分支，但我们用一个标志来防止外部打断）
+    let currentNodeId = null;             // 当前正在讲解的节点 id
+
+    // 辅助：添加消息到聊天框
+    function addMessage(role, text, buttons = null) {
+        const container = document.getElementById('chatMessages');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${role}`;
+        msgDiv.innerHTML = text;
+        if (buttons && role === 'ai') {
+            const btnContainer = document.createElement('div');
+            buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.textContent = btn.label;
+                button.onclick = btn.onClick;
+                btnContainer.appendChild(button);
+            });
+            msgDiv.appendChild(btnContainer);
+        }
+        container.appendChild(msgDiv);
+        container.scrollTop = container.scrollHeight;
+        contextHistory.push({ role, text, timestamp: Date.now() });
+    }
+
+    // 开始讲解下一个难点（按照先序递归顺序）
+    function startNextGuide() {
+        if (waitingForAck) {
+            addMessage('ai', "⚠️ 请先确认当前问题是否理解（点击“理解了”或“需要提示”）。");
+            return;
+        }
+        if (currentGuideIndex >= guideNodes.length) {
+            addMessage('ai', "🎉 太好了！所有疑难点已讲解完毕。你可以继续修改代码或提出新问题。");
+            return;
+        }
+        const node = guideNodes[currentGuideIndex];
+        currentNodeId = node.id;
+        // 高亮知识图谱中对应的节点
+        highlightNodeInGraph(node.id);
+        // 发送引导消息
+        let message = `📌 **${node.name}**\n${node.description}\n\n你理解了吗？或者需要更具体的提示？`;
+        addMessage('ai', message, [
+            { label: "✅ 理解了，继续下一个", onClick: () => { handleUnderstand(); } },
+            { label: "❓ 需要提示", onClick: () => { giveHint(node); } }
+        ]);
+        waitingForAck = true;
+    }
+
+    function handleUnderstand() {
+        if (!waitingForAck) return;
+        waitingForAck = false;
+        currentGuideIndex++;
+        startNextGuide();
+    }
+
+    function giveHint(node) {
+        if (!waitingForAck) return;
+        // 根据节点提供额外提示（模拟不同层次的引导）
+        let hint = "";
+        if (node.id === "A1") hint = "💡 提示：想象搜索区间 [left, right]，当 left == right 时区间还有一个元素，所以需要 <= 才能进入循环检查这个元素。";
+        else if (node.id === "A2") hint = "💡 提示：使用 left + (right - left) // 2 可以避免 left+right 过大导致内存问题。";
+        else if (node.id === "A") hint = "💡 提示：你可以尝试在纸上模拟一个简单数组，改变边界条件看看效果。";
+        else if (node.id === "B") hint = "💡 提示：当循环结束没有找到目标，通常返回 -1 或者插入位置（left）。当前代码返回 len(arr) 不符合常规。";
+        else if (node.id === "C") hint = "💡 提示：mid 更新时，因为已经比较过 arr[mid]，新区间应该排除 mid。";
+        else hint = "💡 提示：试试结合代码运行，思考每一步的变量变化。";
+        addMessage('ai', hint);
+        // 不关闭 waitingForAck，用户仍然需要点击“理解了”才能继续
+    }
+
+    // 重置整个引导（例如新代码或用户主动重置）
+    function resetGuide() {
+        currentGuideIndex = 0;
+        waitingForAck = false;
+        inBranch = false;
+        currentNodeId = null;
+        addMessage('ai', "🔄 已重置引导顺序。我们将从头开始按照先序递归方式讲解难点。");
+        startNextGuide();
+    }
+
+    // 处理用户自由提问（简易模拟）
+    function handleUserQuestion(questionText) {
+        addMessage('user', questionText);
+        // 简单关键字匹配，模拟回复（不影响主引导流程，但会插入对话）
+        if (questionText.includes("边界") || questionText.includes("循环")) {
+            addMessage('ai', "关于循环边界，你可以回想一下：while left <= right 适用于闭区间，而 left < right 适用于左闭右开。需要我详细讲解吗？");
+        } else if (questionText.includes("二分查找原理")) {
+            addMessage('ai', "二分查找每次将搜索范围缩小一半，要求数组有序。它的核心是不断比较中间值与目标值。");
+        } else {
+            addMessage('ai', "这个问题很有趣！不过为了保持引导的主干，建议你先完成当前的难点讲解，或者点击“返回主干”按钮重置。");
+        }
+    }
+
+    // 返回主干：重置引导（不重置对话记录，但重新从第一个难点开始）
+    document.getElementById('backToMainBtn').onclick = () => {
+        resetGuide();
+    };
+
+    // ======================= Monaco Editor 集成及内联注释 =======================
+    let editor;
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+        editor = monaco.editor.create(document.getElementById('editor'), {
+            value: `def binary_search(arr, target):
+    left = 0
+    right = len(arr) - 1
+    while left < right:   # 边界条件可能有问题
+        mid = (left + right) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid
+        else:
+            right = mid
+    return len(arr)  # 未找到时返回值不合理
+`,
+            language: 'python',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            lineNumbers: 'on'
+        });
+
+        // 添加内联注释装饰（引导性提示，不直接给答案）
+        const decorations = [
+            {
+                range: new monaco.Range(4, 11, 4, 22),  // while left < right
+                options: { inlineClassName: 'inline-hint', beforeContentClassName: 'hint-text', before: { content: '⚠️ 提示：考虑边界条件 left <= right 还是 left < right？' } }
+            },
+            {
+                range: new monaco.Range(8, 18, 8, 22),  // left = mid
+                options: { inlineClassName: 'inline-hint', before: { content: '💡 思考：更新 left 时是否应该 +1？' } }
+            },
+            {
+                range: new monaco.Range(12, 12, 12, 25), // return len(arr)
+                options: { inlineClassName: 'inline-hint', before: { content: '🤔 未找到时应该返回 -1 还是 len(arr)？' } }
+            }
+        ];
+        editor.deltaDecorations([], decorations);
+    });
+
+    // ======================= 知识图谱 (D3 树状图) =======================
+    let svg;
+    function renderKnowledgeGraph() {
+        const container = document.getElementById('graph-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        // 清除原有内容
+        d3.select("#graph-container svg").remove();
+        svg = d3.select("#graph-container")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .append("g")
+            .attr("transform", "translate(40,40)");
+
+        // 将难点树转换为 D3 层级结构
+        const root = d3.hierarchy(difficultyTree);
+        const treeLayout = d3.tree().size([height - 80, width - 120]);
+        treeLayout(root);
+
+        // 绘制连线
+        svg.selectAll(".link")
+            .data(root.links())
+            .enter()
+            .append("path")
+            .attr("class", "link")
+            .attr("fill", "none")
+            .attr("stroke", "#ccc")
+            .attr("stroke-width", 1.5)
+            .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
+
+        // 绘制节点
+        const nodes = svg.selectAll(".node")
+            .data(root.descendants())
+            .enter()
+            .append("g")
+            .attr("class", "node")
+            .attr("transform", d => `translate(${d.y},${d.x})`)
+            .on("click", (event, d) => {
+                // 点击节点，在对话区询问是否讲解该知识点
+                addMessage('user', `请解释知识点：${d.data.name}`);
+                addMessage('ai', `📖 **${d.data.name}**：${d.data.description || "这是一个基础概念。"}\n是否需要将其加入当前引导顺序？`);
+                // 可扩展：将点击的节点加入临时讲解队列，但为了简洁，仅展示说明
+            });
+
+        nodes.append("circle")
+            .attr("r", 8)
+            .attr("fill", d => d.data.id === currentNodeId ? "#ff9800" : "#4caf50")
+            .attr("stroke", "white")
+            .attr("stroke-width", 2);
+
+        nodes.append("text")
+            .attr("dy", ".35em")
+            .attr("x", 12)
+            .text(d => d.data.name)
+            .style("font-size", "12px")
+            .style("fill", "#333");
+    }
+
+    function highlightNodeInGraph(nodeId) {
+        // 简单重新渲染时高亮，为了性能，可只改变颜色
+        d3.selectAll("#graph-container svg circle").attr("fill", d => d.data.id === nodeId ? "#ff9800" : "#4caf50");
+    }
+
+    window.addEventListener('resize', () => { renderKnowledgeGraph(); });
+    setTimeout(() => { renderKnowledgeGraph(); }, 500);
+
+    // 监听发送按钮和预设问题
+    document.getElementById('send-btn').onclick = () => {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (text === "") return;
+        handleUserQuestion(text);
+        input.value = "";
+    };
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.onclick = () => {
+            const q = btn.getAttribute('data-question');
+            handleUserQuestion(q);
+        };
+    });
+
+    // 自动开始引导
+    setTimeout(() => {
+        startNextGuide();
+    }, 1000);
+</script>
+</body>
+</html>
