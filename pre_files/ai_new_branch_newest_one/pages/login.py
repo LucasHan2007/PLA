@@ -2,7 +2,8 @@ import streamlit as st
 import os
 import datetime
 from openai import OpenAI
-"""登录界面，负责登录逻辑和api接受"""
+import time
+#"""登录界面，负责登录逻辑和api接受"""
 st.set_page_config(page_title="AI编程助手", page_icon="🤖")
 
 st.header("你好，这是一个 AI 辅助的编程工具")
@@ -60,6 +61,8 @@ with st.form("login_form"):
                         st.session_state.logged_in = "已登录"
                         st.session_state.selected_model = "deepseek-chat"
                         st.success("管理员登录成功！")
+                        st.balloons()
+                        
                         st.switch_page("pages/page1.py")
                     else:
                         st.error("环境变量「墙木的key」未设置")
@@ -72,6 +75,8 @@ with st.form("login_form"):
                         st.session_state.client = OpenAI(api_key=custom_key, base_url=custom_url.rstrip("/"))
                         st.session_state.logged_in = "已登录"
                         st.success("登录成功！")
+                        st.balloons()
+                    
                         st.switch_page("pages/page1.py")
                     else:
                         st.warning("自定义 API 地址和 Key 不能为空")
@@ -83,6 +88,8 @@ with st.form("login_form"):
                     st.session_state.client = OpenAI(api_key=key, base_url=API_PROVIDERS[base_url])
                     st.session_state.logged_in = "已登录"
                     st.success("连接成功！")
+                    st.balloons()
+                
                     st.switch_page("pages/page1.py")
                 else:
                     st.error("请填写完整的 API Key")
@@ -97,4 +104,6 @@ if st.button("游客登录"):
     st.session_state.api_provider = "游客"
     st.session_state.client = None
     st.success("游客登录成功！")
+    st.balloons()
+    
     st.switch_page("pages/page1.py")

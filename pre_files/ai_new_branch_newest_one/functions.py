@@ -1,5 +1,3 @@
-
-# chat_tree.py
 import uuid
 import copy
 import re

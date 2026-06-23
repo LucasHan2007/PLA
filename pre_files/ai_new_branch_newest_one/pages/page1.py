@@ -3,6 +3,7 @@
 import streamlit as st
 import functions
 from stream_chat import show_messages, chat_with_ai, get_model_options, PROMPT_MODES
+from promt_list import PROMPTS
 from functions import (
     init_tree,
     render_tree_sidebar,
@@ -114,8 +115,8 @@ with st.sidebar:
             if client is not None:
                 try:
                     rec_messages = [
-                        {"role": "system", "content": "你是学习路径规划专家。请根据用户已探索的知识点，推荐 1-2 个值得深入学习的下一知识点。用 [名称](knowledge:简介) 格式标记。"},
-                        {"role": "user", "content": f"用户已探索的知识点图谱：{graph_ctx}\n请给出推荐。"},
+                        {"role": "system", "content": PROMPTS["推荐下一知识点_system"]},
+                        {"role": "user", "content": PROMPTS["推荐下一知识点_user"].format(graph_ctx=graph_ctx)},
                     ]
                     rec_response = client.chat.completions.create(
                         model=st.session_state.get("selected_model", "deepseek-chat"),
