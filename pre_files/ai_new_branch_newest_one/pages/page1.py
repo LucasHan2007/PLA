@@ -13,7 +13,10 @@ from functions import (
     render_stored_highlights,
     sync_current_node_messages,
     get_breadcrumb,
+<<<<<<< HEAD
     switch_to_root,
+=======
+>>>>>>> c971cb01ad90e291373c6466b70720d3a55c6371
 )
 
 # ========== 检查登录状态 ==========
@@ -41,7 +44,10 @@ with col1:
     breadcrumb = get_breadcrumb()
     if len(breadcrumb) > 1:
         st.caption("分支路径：" + " › ".join(breadcrumb))
+<<<<<<< HEAD
         st.button("↩ 回到主线", on_click=switch_to_root, key="back_to_root")
+=======
+>>>>>>> c971cb01ad90e291373c6466b70720d3a55c6371
 with col2:
     if st.button("🚪 退出登录", use_container_width=True):
         st.session_state.clear()
