@@ -15,6 +15,7 @@ interface Props {
   onSubmit: () => void
   canSubmit: boolean
   mode?: 'intro' | 'split' | 'analysis'
+  layout?: 'bottom' | 'sidebar'
   onNextAnalysisStep?: () => void
   onPrevAnalysisStep?: () => void
   canPrevAnalysisStep?: boolean
@@ -38,6 +39,7 @@ export default function InteractionPanel({
   onSubmit,
   canSubmit,
   mode = 'split',
+  layout = 'bottom',
   onNextAnalysisStep,
   onPrevAnalysisStep,
   canPrevAnalysisStep = false,
@@ -52,11 +54,12 @@ export default function InteractionPanel({
 
   const isIntro = mode === 'intro'
   const isAnalysis = mode === 'analysis'
+  const isSidebar = layout === 'sidebar'
 
   return (
     <div
       className={`flex flex-col h-full bg-pla-bg ${
-        isIntro ? '' : 'border-t border-pla-border'
+        isIntro ? '' : isSidebar ? 'border-l border-pla-border' : 'border-t border-pla-border'
       }`}
     >
       <div className="flex flex-1 min-h-0">
@@ -86,21 +89,23 @@ export default function InteractionPanel({
         </div>
       </div>
 
-      <div className="shrink-0 px-4 py-2.5 border-t border-pla-border bg-pla-panel/60 flex items-center justify-between gap-3">
-        <span className="text-xs text-pla-muted hidden sm:inline text-center flex-1">
-          {isIntro
-            ? '描述你想学习的编程项目，按 Ctrl+Enter 提交'
-            : isAnalysis
-              ? '阅读上方本步任务；下方提问由 AI 解答，完成后点击「下一步」'
-              : '编辑完成后点击提交，或在任意输入框按 Ctrl+Enter'}
-        </span>
-        <div className="flex items-center gap-2 shrink-0 ml-auto">
+      <div className="shrink-0 px-3 py-2.5 border-t border-pla-border bg-pla-panel/60 flex flex-col gap-2">
+        {!isSidebar && (
+          <span className="text-xs text-pla-muted hidden sm:inline text-center">
+            {isIntro
+              ? '描述你想学习的编程项目，按 Ctrl+Enter 提交'
+              : isAnalysis
+                ? '阅读左侧本步任务；在此提问后点击「下一步」继续'
+                : '编辑完成后点击提交，或在任意输入框按 Ctrl+Enter'}
+          </span>
+        )}
+        <div className={`flex items-center gap-2 shrink-0 ${isSidebar ? 'flex-col' : 'ml-auto w-full justify-end'}`}>
           {isAnalysis && canPrevAnalysisStep && onPrevAnalysisStep && (
             <button
               type="button"
               onClick={onPrevAnalysisStep}
               disabled={loading}
-              className="px-4 py-2 rounded-lg border border-pla-border hover:border-pla-accent/50 hover:bg-pla-accent/10 disabled:opacity-40 text-sm font-medium transition-colors"
+              className={`px-4 py-2 rounded-lg border border-pla-border hover:border-pla-accent/50 hover:bg-pla-accent/10 disabled:opacity-40 text-sm font-medium transition-colors ${isSidebar ? 'w-full' : ''}`}
             >
               上一步
             </button>
@@ -110,7 +115,7 @@ export default function InteractionPanel({
               type="button"
               onClick={onNextAnalysisStep}
               disabled={loading}
-              className="px-4 py-2 rounded-lg border border-pla-border hover:border-pla-accent/50 hover:bg-pla-accent/10 disabled:opacity-40 text-sm font-medium transition-colors"
+              className={`px-4 py-2 rounded-lg border border-pla-border hover:border-pla-accent/50 hover:bg-pla-accent/10 disabled:opacity-40 text-sm font-medium transition-colors ${isSidebar ? 'w-full' : ''}`}
             >
               {nextAnalysisStepLabel}
             </button>
@@ -128,7 +133,7 @@ export default function InteractionPanel({
             <button
               onClick={onSubmit}
               disabled={loading || !canSubmit}
-              className="px-6 py-2 rounded-lg bg-pla-accent hover:bg-pla-accentHover disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+              className={`px-6 py-2 rounded-lg bg-pla-accent hover:bg-pla-accentHover disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium transition-colors ${isSidebar ? 'w-full' : ''}`}
             >
               {loading ? '回复中...' : '提问 (Ctrl+Enter)'}
             </button>

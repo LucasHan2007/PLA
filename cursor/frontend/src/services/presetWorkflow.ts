@@ -21,29 +21,23 @@ export function advanceAnalysisNextStep(
   return { revealedPlanCount, enterOperationDesc: true }
 }
 
-export function presetAnalysisIntroMessage(project: PresetProject): string {
-  const first = project.output.logic_plan[0]?.title ?? '项目解析'
+export function presetAnalysisIntroMessage(_project: PresetProject): string {
   return (
-    `已载入内置项目「${project.name}」（完整解析、操作与代码均已预设）。` +
-    `项目解析共 ${project.output.logic_plan.length} 步；当前第 1 步「${first}」。` +
-    `上方「本步解析」说明设计要点，「本步任务」列出为完成手写数字识别项目你在本步需做的工作；` +
-    `可在下方「任务答疑」询问如何做，无需向 PLA 提交任务答案。完成后点击「下一步」。`
+    '1. 阅读左侧「本步解析」与「本步任务」，并按「本步任务」完成手写数字识别项目在本步的待办工作。\n' +
+    '2. 有疑问在此提问。\n' +
+    '3. 完成后点击「下一步」。'
   )
 }
 
 export function presetAnalysisStepMessage(
   stepIndex: number,
   planTitle: string,
-  taskTitle: string,
   planTotal: number,
 ): string {
   if (stepIndex >= planTotal) {
     return '全部解析步骤已完成。点击「进入操作描述」继续学习。'
   }
-  return (
-    `已进入第 ${stepIndex} 步「${planTitle}」。` +
-    `请阅读上方本步解析，并按「本步任务」完成手写数字识别项目在本步的待办工作。`
-  )
+  return `已进入第 ${stepIndex} 步「${planTitle}」。`
 }
 
 export function getPresetAnalysisQuestion(

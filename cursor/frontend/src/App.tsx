@@ -58,6 +58,9 @@ export default function App() {
   const [analysisStepIndex, setAnalysisStepIndex] = useState(0)
   const [revealedStepCount, setRevealedStepCount] = useState(0)
   const [revealedCodeCount, setRevealedCodeCount] = useState(0)
+  const [announcedAnalysisSteps, setAnnouncedAnalysisSteps] = useState<Set<number>>(
+    () => new Set(),
+  )
 
   const presetProject = useMemo(
     () => (selectedProjectId ? getPresetProject(selectedProjectId) : undefined),
@@ -154,6 +157,7 @@ export default function App() {
     setWorkflowPhase('project_analysis')
     setChatInput('')
     setSessionId(null)
+    setAnnouncedAnalysisSteps(new Set())
     setMessages([
       {
         role: 'assistant',
@@ -229,20 +233,24 @@ export default function App() {
     }
 
     setAnalysisStepIndex(nextStep)
-    const planItem = presetProject.output.logic_plan[nextStep - 1]
-    const task = presetProject.analysisTasks[nextStep - 1]
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'assistant',
-        content: presetAnalysisStepMessage(
-          nextStep,
-          planItem?.title ?? '',
-          task?.title ?? '',
-          planTotal,
-        ),
-      },
-    ])
+
+    setAnnouncedAnalysisSteps((announced) => {
+      if (announced.has(nextStep)) return announced
+
+      const planItem = presetProject.output.logic_plan[nextStep - 1]
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: presetAnalysisStepMessage(
+            nextStep,
+            planItem?.title ?? '',
+            planTotal,
+          ),
+        },
+      ])
+      return new Set(announced).add(nextStep)
+    })
   }, [presetProject, loading, analysisStepIndex, planTotal, syncPresetQuestions])
 
   const handleAnalysisPrevStep = useCallback(() => {
@@ -417,7 +425,6 @@ export default function App() {
 
   const showReferenceSidebar =
     workflowPhase === 'operation_desc' || workflowPhase === 'code_design'
-  const showMainPlan = workflowPhase === 'project_analysis'
   const showMainSteps = workflowPhase === 'operation_desc'
   const showMainCode = workflowPhase === 'code_design'
 
@@ -453,6 +460,43 @@ export default function App() {
             />
           </div>
         </div>
+      ) : workflowPhase === 'project_analysis' ? (
+        <div className="flex-1 flex min-h-0">
+          {presetOutput && (
+            <>
+              <div className="flex-[3] min-w-0 min-h-0 overflow-hidden">
+                <ProjectAnalysisStepPanel
+                  taskSummary={presetOutput.task_summary}
+                  planItem={currentPlanItem}
+                  task={currentAnalysisTask}
+                  stepIndex={analysisStepIndex}
+                  stepTotal={planTotal}
+                />
+              </div>
+              <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+                <InteractionPanel
+                  questions={socraticQuestions}
+                  socraticAnswers={socraticAnswers}
+                  onSocraticAnswerChange={handleSocraticAnswerChange}
+                  onSkipQuestion={handleSkipQuestion}
+                  messages={messages}
+                  terms={presetOutput.terms || []}
+                  loading={loading}
+                  chatInput={chatInput}
+                  onChatInputChange={setChatInput}
+                  onSubmit={handleSubmit}
+                  canSubmit={canSubmit}
+                  mode="analysis"
+                  layout="sidebar"
+                  onNextAnalysisStep={handleAnalysisNextStep}
+                  onPrevAnalysisStep={handleAnalysisPrevStep}
+                  canPrevAnalysisStep={analysisStepIndex > 1}
+                  nextAnalysisStepLabel={analysisNextLabel}
+                />
+              </div>
+            </>
+          )}
+        </div>
       ) : (
         <>
           <div className="flex-1 flex min-h-0">
@@ -468,18 +512,6 @@ export default function App() {
             )}
 
             <div className="flex-1 flex flex-col min-h-0 min-w-0">
-              {showMainPlan && presetOutput && (
-                <div className="flex-[2] min-h-0 overflow-hidden border-b border-pla-border">
-                  <ProjectAnalysisStepPanel
-                    taskSummary={presetOutput.task_summary}
-                    planItem={currentPlanItem}
-                    task={currentAnalysisTask}
-                    stepIndex={analysisStepIndex}
-                    stepTotal={planTotal}
-                  />
-                </div>
-              )}
-
               {showMainSteps && (
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ExecutionStepsPanel
@@ -532,7 +564,7 @@ export default function App() {
               onChatInputChange={setChatInput}
               onSubmit={handleSubmit}
               canSubmit={canSubmit}
-              mode={workflowPhase === 'project_analysis' ? 'analysis' : 'split'}
+              mode="split"
               onNextAnalysisStep={handleAnalysisNextStep}
               onPrevAnalysisStep={handleAnalysisPrevStep}
               canPrevAnalysisStep={analysisStepIndex > 1}

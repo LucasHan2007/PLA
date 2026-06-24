@@ -35,7 +35,7 @@ export default function ChatPanel({
         <div className="panel-header">
           <span>{isTaskQa ? '❓' : '💬'}</span>{' '}
           {isTaskQa ? '任务答疑' : '自由对话'}
-          {terms.length > 0 && (
+          {terms.length > 0 && !isTaskQa && (
             <div className="ml-2 flex gap-1 overflow-x-auto max-w-[200px]">
               {terms.slice(0, 3).map((t) => (
                 <span
@@ -65,7 +65,7 @@ export default function ChatPanel({
         {!introMode && messages.length === 0 && (
           <div className="text-sm text-pla-muted text-center py-4 leading-relaxed px-2">
             {isTaskQa
-              ? '针对上方「本步任务」提问，由 AI 解答（需启动后端并配置 LLM）'
+              ? '阅读左侧本步内容，在此输入问题并提问'
               : '在此与 AI 自由交流：补充想法、提问、粘贴报错等'}
           </div>
         )}
