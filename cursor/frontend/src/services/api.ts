@@ -14,7 +14,6 @@ export async function sendChat(payload: {
   revealed_plan_count?: number
   revealed_step_count?: number
   revealed_code_count?: number
-  debug_skip_socratic?: boolean
   debug_skip_to_phase?: WorkflowPhase | null
 }): Promise<{ session_id: string; output: AIStructuredOutput }> {
   const controller = new AbortController()
@@ -37,7 +36,6 @@ export async function sendChat(payload: {
         revealed_plan_count: payload.revealed_plan_count ?? 0,
         revealed_step_count: payload.revealed_step_count ?? 0,
         revealed_code_count: payload.revealed_code_count ?? 0,
-        debug_skip_socratic: payload.debug_skip_socratic ?? false,
         debug_skip_to_phase: payload.debug_skip_to_phase ?? null,
       }),
     })
