@@ -10,10 +10,30 @@ class LogicPlanItem(BaseModel):
     children: list["LogicPlanItem"] = Field(default_factory=list)
 
 
+class OperationSubStep(BaseModel):
+    """小步骤：用户不可见的目标，通过引导性问题思考后揭示。"""
+
+    sub_id: int
+    title: str
+    description: str = ""
+    rationale: str = ""
+    why: str = ""
+    inputs: str = ""
+    outputs: str = ""
+    knowledge_points: list[str] = Field(default_factory=list)
+    code_module: str = ""
+    common_errors: list[str] = Field(default_factory=list)
+    next_hint: str = ""
+
+
 class ExecutionStep(BaseModel):
+    """大步骤：源于 logic_plan 某一点，含若干小步骤 sub_steps。"""
+
     step_id: int
     title: str
-    description: str
+    logic_plan_ref: int | None = None
+    description: str = ""
+    sub_steps: list[OperationSubStep] = Field(default_factory=list)
     why: str = ""
     inputs: str = ""
     outputs: str = ""
@@ -92,7 +112,6 @@ class ChatRequest(BaseModel):
     revealed_plan_count: int = 0
     revealed_step_count: int = 0
     revealed_code_count: int = 0
-    debug_skip_socratic: bool = False
     debug_skip_to_phase: WorkflowPhase | None = None
 
 

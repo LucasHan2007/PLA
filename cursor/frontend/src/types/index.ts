@@ -7,10 +7,26 @@ export interface LogicPlanItem {
   children?: LogicPlanItem[]
 }
 
+export interface OperationSubStep {
+  sub_id: number
+  title: string
+  description: string
+  rationale?: string
+  why?: string
+  inputs?: string
+  outputs?: string
+  knowledge_points?: string[]
+  code_module?: string
+  common_errors?: string[]
+  next_hint?: string
+}
+
 export interface ExecutionStep {
   step_id: number
   title: string
-  description: string
+  logic_plan_ref?: number | null
+  description?: string
+  sub_steps?: OperationSubStep[]
   why?: string
   inputs?: string
   outputs?: string

@@ -9,6 +9,7 @@ from app.schemas.ai_output import (
     ExecutionStep,
     FollowUpQuestion,
     LogicPlanItem,
+    OperationSubStep,
     TermDefinition,
 )
 
@@ -110,24 +111,62 @@ def normalize_follow_up_questions(raw: Any) -> list[FollowUpQuestion]:
     return items
 
 
+def normalize_execution_steps(raw_items: list[Any]) -> list[ExecutionStep]:
+    """Parse execution_steps; wrap legacy flat steps as single-sub-step groups."""
+    steps: list[ExecutionStep] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        step = ExecutionStep(**item)
+        if not step.sub_steps:
+            step = step.model_copy(
+                update={
+                    "sub_steps": [
+                        OperationSubStep(
+                            sub_id=1,
+                            title=step.title,
+                            description=step.description,
+                            rationale=step.why or step.description,
+                            why=step.why,
+                            inputs=step.inputs,
+                            outputs=step.outputs,
+                            knowledge_points=list(step.knowledge_points),
+                            code_module=step.code_module,
+                            common_errors=list(step.common_errors),
+                            next_hint=step.next_hint,
+                        )
+                    ]
+                }
+            )
+        steps.append(step)
+    return steps
+
+
+def count_total_sub_steps(steps: list[ExecutionStep]) -> int:
+    return sum(len(group.sub_steps) for group in steps)
+
+
+def get_next_hidden_sub_step(
+    steps: list[ExecutionStep], revealed_count: int
+) -> tuple[ExecutionStep, OperationSubStep, int, int] | None:
+    flat = 0
+    for group_index, group in enumerate(steps):
+        for sub_index, sub in enumerate(group.sub_steps):
+            if flat == revealed_count:
+                return group, sub, group_index, sub_index
+            flat += 1
+    return None
+
+
 def ensure_follow_up_questions(questions: list[FollowUpQuestion]) -> list[FollowUpQuestion]:
-    """Fallback when LLM omits follow_up_questions."""
+    """Fallback when LLM omits follow_up_questions; at most one question per turn."""
     if questions:
-        return questions
+        return questions[:1]
     return [
         FollowUpQuestion(
             question="你的项目主要处理什么类型的输入？",
             answer_type="choice",
             options=["图像/文件", "文本/结构化数据", "用户交互输入", "API/传感器数据", "其他"],
-        ),
-        FollowUpQuestion(
-            question="你计划使用哪种编程语言或框架？",
-            answer_type="choice",
-            options=["Python", "JavaScript/TypeScript", "Java", "C/C++", "尚未确定"],
-        ),
-        FollowUpQuestion(
-            question="请补充描述项目的具体目标、约束或现有条件",
-            answer_type="text",
         ),
     ]
 
@@ -140,7 +179,7 @@ def parse_structured_output(raw: dict[str, Any] | None, fallback_text: str = "")
         )
 
     logic_plan = [LogicPlanItem(**item) for item in raw.get("logic_plan", [])]
-    execution_steps = [ExecutionStep(**item) for item in raw.get("execution_steps", [])]
+    execution_steps = normalize_execution_steps(raw.get("execution_steps", []))
     code_blocks = enrich_code_blocks([CodeBlock(**item) for item in raw.get("code_blocks", [])])
     terms = [TermDefinition(**item) for item in raw.get("terms", [])]
     raw_questions = (
@@ -149,7 +188,7 @@ def parse_structured_output(raw: dict[str, Any] | None, fallback_text: str = "")
         or raw.get("socratic_questions")
         or []
     )
-    follow_up_questions = ensure_follow_up_questions(normalize_follow_up_questions(raw_questions))
+    follow_up_questions = ensure_follow_up_questions(normalize_follow_up_questions(raw_questions))[:1]
 
     return AIStructuredOutput(
         task_summary=raw.get("task_summary", ""),

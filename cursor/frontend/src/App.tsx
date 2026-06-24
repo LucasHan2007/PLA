@@ -3,10 +3,11 @@ import CodeAnnotationsPanel from './components/CodeAnnotationsPanel'
 import CodeEditorPanel from './components/CodeEditorPanel'
 import DebugToolbar from './components/DebugToolbar'
 import ExecutionStepsPanel from './components/ExecutionStepsPanel'
+import IntroPanel, { formatIntroMessage } from './components/IntroPanel'
 import InteractionPanel from './components/InteractionPanel'
 import LogicPlanPanel from './components/LogicPlanPanel'
 import ReferenceSidebar from './components/ReferenceSidebar'
-import { useDebugOptions } from './hooks/useDebugOptions'
+import { SKIP_ANSWER } from './components/SocraticPanel'
 import { sendChat } from './services/api'
 import type {
   AIStructuredOutput,
@@ -17,23 +18,34 @@ import type {
   WorkflowPhase,
 } from './types'
 import { mergeOutput } from './utils/mergeOutput'
+import {
+  buildVisibleOperationView,
+  countTotalSubSteps,
+  getNextHiddenSubStep,
+} from './utils/operationSteps'
 
 const PHASE_LABELS: Record<WorkflowPhase, string> = {
-  intro: '第一步 · 描述项目',
+  intro: '第一步 · 填写项目',
   project_analysis: '第二步 · 项目解析',
   operation_desc: '第三步 · 操作描述',
   code_design: '第四步 · 代码设计',
 }
 
+function takeFirstQuestion(questions: FollowUpQuestion[] | undefined) {
+  return (questions ?? []).slice(0, 1)
+}
+
 export default function App() {
-  const { skipSocratic, setSkipSocratic } = useDebugOptions()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [output, setOutput] = useState<AIStructuredOutput | null>(null)
   const [codeBlocks, setCodeBlocks] = useState<CodeBlock[]>([])
+  const [activeSubKey, setActiveSubKey] = useState<string | null>(null)
   const [activeStepId, setActiveStepId] = useState<number | null>(null)
   const [activePlanId, setActivePlanId] = useState<number | null>(null)
   const [chatInput, setChatInput] = useState('')
+  const [projectName, setProjectName] = useState('')
+  const [projectDescription, setProjectDescription] = useState('')
   const [socraticQuestions, setSocraticQuestions] = useState<FollowUpQuestion[]>([])
   const [socraticAnswers, setSocraticAnswers] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -43,29 +55,26 @@ export default function App() {
   const [revealedCodeCount, setRevealedCodeCount] = useState(0)
 
   useEffect(() => {
-    if (skipSocratic) return
-    const questions = output?.follow_up_questions ?? []
+    const questions = takeFirstQuestion(output?.follow_up_questions)
     setSocraticQuestions(questions)
     setSocraticAnswers(questions.map(() => ''))
-  }, [output, skipSocratic])
+  }, [output])
 
-  useEffect(() => {
-    if (skipSocratic) {
-      setSocraticQuestions([])
-      setSocraticAnswers([])
-    }
-  }, [skipSocratic])
-
-  const stepTotal = output?.execution_steps.length ?? 0
+  const executionGroups = output?.execution_steps ?? []
+  const stepTotal = useMemo(() => countTotalSubSteps(executionGroups), [executionGroups])
   const codeTotal = output?.code_blocks.length ?? 0
 
   const visibleLogicPlan = useMemo(
     () => output?.logic_plan ?? [],
     [output?.logic_plan],
   )
-  const visibleSteps = useMemo(
-    () => (output?.execution_steps ?? []).slice(0, revealedStepCount),
-    [output?.execution_steps, revealedStepCount],
+  const visibleOperationGroups = useMemo(
+    () => buildVisibleOperationView(executionGroups, revealedStepCount),
+    [executionGroups, revealedStepCount],
+  )
+  const nextHiddenSubStep = useMemo(
+    () => getNextHiddenSubStep(executionGroups, revealedStepCount),
+    [executionGroups, revealedStepCount],
   )
   const visibleCodeBlocks = useMemo(
     () => codeBlocks.slice(0, revealedCodeCount),
@@ -76,10 +85,11 @@ export default function App() {
     if (loading) return false
     const hasChat = chatInput.trim().length > 0
     const hasSocratic = socraticAnswers.some((a) => a.trim().length > 0)
-    if (workflowPhase === 'intro') return hasChat
-    if (skipSocratic) return true
+    if (workflowPhase === 'intro') {
+      return projectName.trim().length > 0
+    }
     return hasChat || hasSocratic
-  }, [chatInput, socraticAnswers, workflowPhase, skipSocratic, loading])
+  }, [chatInput, socraticAnswers, workflowPhase, loading, projectName, projectDescription])
 
   const handleSocraticAnswerChange = (index: number, value: string) => {
     setSocraticAnswers((prev) => {
@@ -97,34 +107,30 @@ export default function App() {
       merged: AIStructuredOutput,
       hadSocraticAnswers: boolean,
       hadChat: boolean,
-      skipQuestions: boolean,
     ) => {
       let nextPhase = phase
       let nextStep = stepCount
       let nextCode = codeCount
-      const answered = hadSocraticAnswers || skipQuestions
 
       if (phase === 'intro' && hadChat) {
         nextPhase = 'project_analysis'
       }
 
       if (nextPhase === 'project_analysis') {
-        if (merged.analysis_complete && (hadSocraticAnswers || hadChat || skipQuestions)) {
+        if (merged.analysis_complete && (hadSocraticAnswers || hadChat)) {
           nextPhase = 'operation_desc'
           nextStep = 0
         }
       } else if (nextPhase === 'operation_desc') {
-        if (answered && nextStep < merged.execution_steps.length) {
+        const totalSubs = countTotalSubSteps(merged.execution_steps)
+        if (hadSocraticAnswers && nextStep < totalSubs) {
           nextStep += 1
         }
-        if (
-          merged.operations_complete &&
-          (hadSocraticAnswers || hadChat || skipQuestions)
-        ) {
+        if (merged.operations_complete && (hadSocraticAnswers || hadChat)) {
           nextPhase = 'code_design'
           nextCode = 0
         }
-      } else if (nextPhase === 'code_design' && answered) {
+      } else if (nextPhase === 'code_design' && hadSocraticAnswers) {
         if (nextCode < merged.code_blocks.length) {
           nextCode += 1
         }
@@ -137,67 +143,126 @@ export default function App() {
     [],
   )
 
-  const applyChatResponse = useCallback(
-    (
-      res: { session_id: string; output: AIStructuredOutput },
-      apiPhase: WorkflowPhase,
-      socraticPayload: SocraticAnswer[],
-      chatPart: string,
-    ) => {
-      setSessionId(res.session_id)
-      const inProjectAnalysis =
-        apiPhase === 'project_analysis' || workflowPhase === 'project_analysis'
-      const inOperationDesc =
-        apiPhase === 'operation_desc' || workflowPhase === 'operation_desc'
-      const merged = mergeOutput(output, res.output, {
-        replaceLogicPlan: inProjectAnalysis,
-        replaceExecutionSteps: inOperationDesc,
-      })
-      setOutput(merged)
+  const executeChat = useCallback(
+    async (chatPart: string, socraticPayload: SocraticAnswer[]) => {
+      const apiPhase: WorkflowPhase =
+        workflowPhase === 'intro' && chatPart ? 'project_analysis' : workflowPhase
 
-      if (merged.code_blocks.length && workflowPhase === 'code_design') {
-        setCodeBlocks((prev) => {
-          const byName = new Map(prev.map((b) => [b.file_name, b]))
-          for (const block of merged.code_blocks) {
-            byName.set(block.file_name, block)
-          }
-          return merged.code_blocks.map((b) => byName.get(b.file_name) ?? b)
-        })
+      setLoading(true)
+
+      if (chatPart || socraticPayload.length > 0) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'user',
+            content: chatPart || socraticPayload.map((s) => s.answer).join(' '),
+            chatPart: chatPart || undefined,
+            socraticPart: socraticPayload.length > 0 ? socraticPayload : undefined,
+          },
+        ])
       }
 
-      advanceWorkflow(
-        workflowPhase,
-        revealedStepCount,
-        revealedCodeCount,
-        merged,
-        socraticPayload.length > 0,
-        chatPart.length > 0,
-        skipSocratic,
-      )
+      try {
+        const activeBlock =
+          workflowPhase === 'code_design'
+            ? visibleCodeBlocks.find((b) => b.file_name)
+            : undefined
+        const focusStepId =
+          workflowPhase === 'operation_desc' && nextHiddenSubStep
+            ? nextHiddenSubStep.group.step_id
+            : workflowPhase === 'code_design'
+              ? activeStepId
+              : null
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: merged.assistant_message || merged.task_summary,
-          output: merged,
-        },
-      ])
+        const res = await sendChat({
+          message: chatPart,
+          socratic_answers: socraticPayload,
+          session_id: sessionId,
+          step_id: focusStepId,
+          code_context: activeBlock?.code ?? null,
+          workflow_phase: apiPhase,
+          revealed_plan_count: output?.logic_plan.length ?? 0,
+          revealed_step_count: revealedStepCount,
+          revealed_code_count: revealedCodeCount,
+        })
+
+        setSessionId(res.session_id)
+        const inProjectAnalysis =
+          apiPhase === 'project_analysis' || workflowPhase === 'project_analysis'
+        const inOperationDesc =
+          apiPhase === 'operation_desc' || workflowPhase === 'operation_desc'
+        const merged = mergeOutput(output, res.output, {
+          replaceLogicPlan: inProjectAnalysis,
+          replaceExecutionSteps: inOperationDesc,
+        })
+        setOutput(merged)
+
+        if (merged.code_blocks.length && workflowPhase === 'code_design') {
+          setCodeBlocks((prev) => {
+            const byName = new Map(prev.map((b) => [b.file_name, b]))
+            for (const block of merged.code_blocks) {
+              byName.set(block.file_name, block)
+            }
+            return merged.code_blocks.map((b) => byName.get(b.file_name) ?? b)
+          })
+        }
+
+        advanceWorkflow(
+          workflowPhase,
+          revealedStepCount,
+          revealedCodeCount,
+          merged,
+          socraticPayload.length > 0,
+          chatPart.length > 0,
+        )
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: merged.assistant_message || merged.task_summary,
+            output: merged,
+          },
+        ])
+      } catch (err) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `请求失败：${err instanceof Error ? err.message : '未知错误'}`,
+          },
+        ])
+      } finally {
+        setLoading(false)
+      }
     },
     [
-      output,
       workflowPhase,
+      sessionId,
+      activeStepId,
+      nextHiddenSubStep,
+      visibleCodeBlocks,
+      output,
       revealedStepCount,
       revealedCodeCount,
       advanceWorkflow,
-      skipSocratic,
     ],
   )
 
-  const handleSubmit = useCallback(async () => {
+  const handleIntroSubmit = useCallback(async () => {
     if (!canSubmit || loading) return
+    const name = projectName.trim()
+    const desc = projectDescription.trim()
+    const chatPart = formatIntroMessage(name, desc)
+    setProjectName('')
+    setProjectDescription('')
+    await executeChat(chatPart, [])
+  }, [canSubmit, loading, projectName, projectDescription, executeChat])
 
-    let chatPart = chatInput.trim()
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit || loading || workflowPhase === 'intro') return
+
+    const chatPart = chatInput.trim()
     const socraticPayload: SocraticAnswer[] = socraticQuestions
       .map((item, index) => ({
         question: item.question,
@@ -205,80 +270,18 @@ export default function App() {
       }))
       .filter((item) => item.answer.length > 0)
 
-    if (skipSocratic && workflowPhase !== 'intro' && !chatPart && socraticPayload.length === 0) {
-      chatPart = '[调试] 跳过提问，继续'
-    }
-
-    const apiPhase: WorkflowPhase =
-      workflowPhase === 'intro' && chatPart ? 'project_analysis' : workflowPhase
-
     setChatInput('')
     setSocraticAnswers(socraticQuestions.map(() => ''))
-    setLoading(true)
+    await executeChat(chatPart, socraticPayload)
+  }, [canSubmit, loading, chatInput, socraticQuestions, socraticAnswers, executeChat])
 
-    if (chatPart || socraticPayload.length > 0) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'user',
-          content: chatPart,
-          chatPart: chatPart || undefined,
-          socraticPart: socraticPayload.length > 0 ? socraticPayload : undefined,
-        },
-      ])
-    }
+  const handleSkipQuestion = useCallback(async () => {
+    if (loading || socraticQuestions.length === 0) return
 
-    try {
-      const activeBlock =
-        workflowPhase === 'code_design'
-          ? visibleCodeBlocks.find((b) => b.file_name)
-          : undefined
-      const focusStepId =
-        workflowPhase === 'operation_desc' || workflowPhase === 'code_design'
-          ? activeStepId
-          : null
-
-      const res = await sendChat({
-        message: chatPart,
-        socratic_answers: socraticPayload,
-        session_id: sessionId,
-        step_id: focusStepId,
-        code_context: activeBlock?.code ?? null,
-        workflow_phase: apiPhase,
-        revealed_plan_count: output?.logic_plan.length ?? 0,
-        revealed_step_count: revealedStepCount,
-        revealed_code_count: revealedCodeCount,
-        debug_skip_socratic: skipSocratic,
-      })
-
-      applyChatResponse(res, apiPhase, socraticPayload, chatPart)
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `请求失败：${err instanceof Error ? err.message : '未知错误'}`,
-        },
-      ])
-    } finally {
-      setLoading(false)
-    }
-  }, [
-    canSubmit,
-    loading,
-    chatInput,
-    socraticQuestions,
-    socraticAnswers,
-    sessionId,
-    activeStepId,
-    visibleCodeBlocks,
-    workflowPhase,
-    revealedStepCount,
-    revealedCodeCount,
-    output,
-    applyChatResponse,
-    skipSocratic,
-  ])
+    const question = socraticQuestions[0]
+    setSocraticAnswers([''])
+    await executeChat('', [{ question: question.question, answer: SKIP_ANSWER }])
+  }, [loading, socraticQuestions, executeChat])
 
   const handleSkipPhase = useCallback(
     async (target: WorkflowPhase) => {
@@ -300,11 +303,9 @@ export default function App() {
           session_id: sessionId,
           workflow_phase: target,
           revealed_plan_count: output?.logic_plan.length ?? 0,
-          revealed_step_count:
-            target === 'code_design' ? stepTotal : revealedStepCount,
+          revealed_step_count: target === 'code_design' ? stepTotal : revealedStepCount,
           revealed_code_count: revealedCodeCount,
           debug_skip_to_phase: target,
-          debug_skip_socratic: skipSocratic,
         })
 
         setSessionId(res.session_id)
@@ -321,20 +322,15 @@ export default function App() {
         setWorkflowPhase(target)
 
         if (target === 'operation_desc') {
-          setRevealedStepCount(
-            skipSocratic ? merged.execution_steps.length : 0,
-          )
+          setRevealedStepCount(0)
         } else if (target === 'code_design') {
-          setRevealedStepCount(merged.execution_steps.length)
-          setRevealedCodeCount(
-            skipSocratic ? merged.code_blocks.length : 0,
-          )
+          setRevealedStepCount(countTotalSubSteps(merged.execution_steps))
+          setRevealedCodeCount(0)
         }
 
-        if (!skipSocratic) {
-          setSocraticQuestions(merged.follow_up_questions ?? [])
-          setSocraticAnswers((merged.follow_up_questions ?? []).map(() => ''))
-        }
+        const questions = takeFirstQuestion(merged.follow_up_questions)
+        setSocraticQuestions(questions)
+        setSocraticAnswers(questions.map(() => ''))
 
         setMessages((prev) => [
           ...prev,
@@ -356,20 +352,18 @@ export default function App() {
         setLoading(false)
       }
     },
-    [
-      loading,
-      sessionId,
-      output,
-      revealedStepCount,
-      revealedCodeCount,
-      stepTotal,
-      skipSocratic,
-    ],
+    [loading, sessionId, output, revealedStepCount, revealedCodeCount, stepTotal],
   )
 
-  const handleSelectStep = (stepId: number) => {
-    setActiveStepId(stepId)
+  const handleSelectSubStep = (groupIndex: number, subId: number) => {
+    setActiveSubKey(`${groupIndex}-${subId}`)
   }
+
+  const operationDescPendingHint = useMemo(() => {
+    if (!nextHiddenSubStep) return undefined
+    const { group, subIndex } = nextHiddenSubStep
+    return `大步骤「${group.title}」中第 ${subIndex + 1} 个小步骤待揭示——请先回答下方引导性问题`
+  }, [nextHiddenSubStep])
 
   const handleCodeChange = (fileName: string, code: string) => {
     setCodeBlocks((prev) =>
@@ -394,44 +388,24 @@ export default function App() {
         {workflowPhase !== 'intro' && (
           <DebugToolbar
             phase={workflowPhase}
-            skipSocratic={skipSocratic}
-            onSkipSocraticChange={setSkipSocratic}
             onSkipPhase={handleSkipPhase}
             loading={loading}
-            hasOutput={!!output}
           />
         )}
       </header>
 
       {workflowPhase === 'intro' ? (
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="shrink-0 px-4 py-2 border-b border-pla-border/50 flex justify-end">
-            <DebugToolbar
-              phase={workflowPhase}
-              skipSocratic={skipSocratic}
-              onSkipSocraticChange={setSkipSocratic}
-              onSkipPhase={handleSkipPhase}
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6 md:p-10">
+          <div className="w-full max-w-lg h-[min(620px,82vh)] flex flex-col rounded-2xl border border-pla-border bg-pla-panel/50 shadow-xl shadow-black/20 overflow-hidden">
+            <IntroPanel
+              projectName={projectName}
+              projectDescription={projectDescription}
+              onProjectNameChange={setProjectName}
+              onProjectDescriptionChange={setProjectDescription}
+              onSubmit={handleIntroSubmit}
+              canSubmit={canSubmit}
               loading={loading}
-              hasOutput={!!output}
             />
-          </div>
-          <div className="flex-1 min-h-0 flex items-center justify-center p-6 md:p-10">
-            <div className="w-full max-w-lg h-[min(560px,78vh)] flex flex-col rounded-2xl border border-pla-border bg-pla-panel/50 shadow-xl shadow-black/20 overflow-hidden">
-              <InteractionPanel
-                questions={[]}
-                socraticAnswers={[]}
-                onSocraticAnswerChange={() => {}}
-                messages={messages}
-                terms={[]}
-                loading={loading}
-                chatInput={chatInput}
-                onChatInputChange={setChatInput}
-                onSubmit={handleSubmit}
-                canSubmit={canSubmit}
-                mode="intro"
-                skipSocratic={skipSocratic}
-              />
-            </div>
           </div>
         </div>
       ) : (
@@ -465,17 +439,14 @@ export default function App() {
               {showMainSteps && (
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ExecutionStepsPanel
-                    steps={visibleSteps}
-                    activeStepId={activeStepId}
-                    onSelectStep={handleSelectStep}
-                    totalCount={stepTotal}
+                    visibleGroups={visibleOperationGroups}
+                    activeSubKey={activeSubKey}
+                    onSelectSubStep={handleSelectSubStep}
+                    totalSubStepCount={stepTotal}
+                    revealedSubStepCount={revealedStepCount}
                     awaitingContent={stepTotal === 0}
                     waitingForQuestion={stepTotal > 0 && revealedStepCount === 0}
-                    pendingHint={
-                      stepTotal > revealedStepCount
-                        ? `第 ${revealedStepCount + 1} 步待揭示——请先回答下方引导性问题`
-                        : undefined
-                    }
+                    pendingHint={operationDescPendingHint}
                   />
                 </div>
               )}
@@ -509,6 +480,7 @@ export default function App() {
               questions={socraticQuestions}
               socraticAnswers={socraticAnswers}
               onSocraticAnswerChange={handleSocraticAnswerChange}
+              onSkipQuestion={handleSkipQuestion}
               messages={messages}
               terms={output?.terms || []}
               loading={loading}
@@ -517,7 +489,6 @@ export default function App() {
               onSubmit={handleSubmit}
               canSubmit={canSubmit}
               mode="split"
-              skipSocratic={skipSocratic}
             />
           </div>
         </>

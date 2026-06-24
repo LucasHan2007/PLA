@@ -1,10 +1,14 @@
-import type { AIStructuredOutput } from '../types'
+import type { AIStructuredOutput, ExecutionStep } from '../types'
 
 interface MergeOptions {
   /** 项目解析阶段：用最新 logic_plan 覆盖，支持动态增删改 */
   replaceLogicPlan?: boolean
   /** 操作描述阶段：用最新 execution_steps 覆盖 */
   replaceExecutionSteps?: boolean
+}
+
+function executionStepsWeight(steps: ExecutionStep[]): number {
+  return steps.reduce((sum, group) => sum + (group.sub_steps?.length ?? 0), steps.length)
 }
 
 /** Keep the richest structured data across turns while refreshing conversational fields. */
@@ -25,7 +29,9 @@ export function mergeOutput(
   const executionSteps =
     options?.replaceExecutionSteps && next.execution_steps.length > 0
       ? next.execution_steps
-      : pickLonger(prev.execution_steps, next.execution_steps)
+      : executionStepsWeight(next.execution_steps) >= executionStepsWeight(prev.execution_steps)
+        ? next.execution_steps
+        : prev.execution_steps
 
   return {
     task_summary: next.task_summary || prev.task_summary,

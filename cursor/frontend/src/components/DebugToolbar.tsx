@@ -2,34 +2,15 @@ import type { WorkflowPhase } from '../types'
 
 interface Props {
   phase: WorkflowPhase
-  skipSocratic: boolean
-  onSkipSocraticChange: (v: boolean) => void
   onSkipPhase: (target: WorkflowPhase) => void
   loading: boolean
-  hasOutput: boolean
 }
 
-export default function DebugToolbar({
-  phase,
-  skipSocratic,
-  onSkipSocraticChange,
-  onSkipPhase,
-  loading,
-  hasOutput,
-}: Props) {
+export default function DebugToolbar({ phase, onSkipPhase, loading }: Props) {
   return (
     <div className="flex items-center gap-2 ml-auto flex-wrap justify-end">
       <span className="text-[10px] uppercase tracking-wide text-amber-400/80">调试</span>
-      <label className="flex items-center gap-1.5 text-xs text-pla-muted cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={skipSocratic}
-          onChange={(e) => onSkipSocraticChange(e.target.checked)}
-          className="accent-amber-500"
-        />
-        跳过提问
-      </label>
-      {(phase === 'project_analysis' || (phase === 'intro' && hasOutput)) && (
+      {phase === 'project_analysis' && (
         <button
           type="button"
           disabled={loading}

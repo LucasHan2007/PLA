@@ -41,7 +41,6 @@ async def chat(request: ChatRequest):
         revealed_plan_count=request.revealed_plan_count,
         revealed_step_count=request.revealed_step_count,
         revealed_code_count=request.revealed_code_count,
-        debug_skip_socratic=request.debug_skip_socratic,
         debug_skip_to_phase=request.debug_skip_to_phase,
     )
     output = sanitize_output_for_phase(output, request.workflow_phase)

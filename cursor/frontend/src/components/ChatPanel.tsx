@@ -99,7 +99,7 @@ export default function ChatPanel({
           </div>
         ))}
         </div>
-        {loading && (
+        {loading && !introMode && (
           <div className="text-sm text-pla-muted animate-pulse">AI 导师正在思考...</div>
         )}
         <div ref={bottomRef} />

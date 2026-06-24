@@ -20,7 +20,6 @@ class LLMService:
         revealed_plan_count: int = 0,
         revealed_step_count: int = 0,
         revealed_code_count: int = 0,
-        debug_skip_socratic: bool = False,
         debug_skip_to_phase: str | None = None,
     ) -> tuple[AIStructuredOutput, str | None]:
         effective_phase = debug_skip_to_phase or workflow_phase
@@ -31,7 +30,6 @@ class LLMService:
                 revealed_plan_count=revealed_plan_count,
                 revealed_step_count=revealed_step_count,
                 revealed_code_count=revealed_code_count,
-                debug_skip_socratic=debug_skip_socratic,
                 debug_skip_to_phase=debug_skip_to_phase,
             )
             return parse_structured_output(demo), None
@@ -48,7 +46,6 @@ class LLMService:
             revealed_plan_count=revealed_plan_count,
             revealed_step_count=revealed_step_count,
             revealed_code_count=revealed_code_count,
-            debug_skip_socratic=debug_skip_socratic,
             debug_skip_to_phase=debug_skip_to_phase,
         )
         raw_text = await self._call_api(messages)

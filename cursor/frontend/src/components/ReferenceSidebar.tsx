@@ -44,14 +44,22 @@ export default function ReferenceSidebar({
         {showSteps && executionSteps.length > 0 && (
           <section>
             <div className="text-[10px] uppercase tracking-wide text-pla-accent mb-1.5">操作描述</div>
-            <div className="space-y-1.5">
-              {executionSteps.map((step) => (
-                <div key={step.step_id} className="rounded border border-pla-border/40 px-2 py-1.5">
+            <div className="space-y-2">
+              {executionSteps.map((group) => (
+                <div key={group.step_id} className="rounded border border-pla-border/40 px-2 py-1.5">
                   <div className="flex items-start gap-1.5">
-                    <span className="text-[10px] text-pla-accent shrink-0">{step.step_id}</span>
+                    <span className="text-[10px] text-pla-accent shrink-0">{group.step_id}</span>
                     <div className="min-w-0">
-                      <div className="text-[11px] font-medium leading-tight">{step.title}</div>
-                      <div className="text-[10px] text-pla-muted mt-0.5 leading-snug">{step.description}</div>
+                      <div className="text-[11px] font-medium leading-tight">{group.title}</div>
+                      {(group.sub_steps ?? []).length > 0 && (
+                        <div className="mt-1 space-y-1">
+                          {(group.sub_steps ?? []).map((sub) => (
+                            <div key={sub.sub_id} className="text-[10px] text-pla-muted leading-snug pl-2 border-l border-pla-border/40">
+                              {sub.title}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
