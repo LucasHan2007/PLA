@@ -5,19 +5,51 @@ interface Props {
   steps: ExecutionStep[]
   activeStepId: number | null
   onSelectStep: (stepId: number) => void
+  totalCount?: number
+  pendingHint?: string
+  awaitingContent?: boolean
+  waitingForQuestion?: boolean
 }
 
-export default function ExecutionStepsPanel({ steps, activeStepId, onSelectStep }: Props) {
+export default function ExecutionStepsPanel({
+  steps,
+  activeStepId,
+  onSelectStep,
+  totalCount,
+  pendingHint,
+  awaitingContent,
+  waitingForQuestion,
+}: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const total = totalCount ?? steps.length
+  const hasPending = total > steps.length
 
-  if (!steps.length) {
+  if (waitingForQuestion && steps.length === 0) {
     return (
       <div className="flex flex-col h-full">
         <div className="panel-header">
-          <span>📝</span> 执行步骤
+          <span>📝</span> 操作描述
+          {total > 0 && (
+            <span className="ml-auto text-xs text-pla-muted">0/{total} 步</span>
+          )}
         </div>
-        <div className="panel-body text-pla-muted text-sm flex items-center justify-center">
-          逻辑方案确定后，此处展示可逐步完成的操作说明
+        <div className="panel-body text-pla-muted text-sm flex items-center justify-center text-center px-6 leading-relaxed">
+          操作步骤已规划（共 {total} 步）。请先回答下方引导性问题，思考通过后才会逐步展示各步的具体内容。
+        </div>
+      </div>
+    )
+  }
+
+  if (!steps.length && !hasPending) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="panel-header">
+          <span>📝</span> 操作描述
+        </div>
+        <div className="panel-body text-pla-muted text-sm flex items-center justify-center text-center px-6 leading-relaxed">
+          {awaitingContent
+            ? '项目解析已完成。请回答下方引导性问题，AI 将用自然语言描述各步骤的具体操作（本阶段不涉及写代码）。'
+            : '项目解析完成后，此处将分步呈现自然语言操作说明。每一步输出前需先完成引导性提问。'}
         </div>
       </div>
     )
@@ -31,8 +63,12 @@ export default function ExecutionStepsPanel({ steps, activeStepId, onSelectStep 
   return (
     <div className="flex flex-col h-full">
       <div className="panel-header">
-        <span>📝</span> 执行步骤
-        <span className="ml-auto text-xs text-pla-muted">{steps.length} 步</span>
+        <span>📝</span> 操作描述
+        {total > 0 && (
+          <span className="ml-auto text-xs text-pla-muted">
+            {steps.length}/{total} 步
+          </span>
+        )}
       </div>
       <div className="panel-body space-y-2">
         {steps.map((step) => {
@@ -79,12 +115,16 @@ export default function ExecutionStepsPanel({ steps, activeStepId, onSelectStep 
                   {step.knowledge_points && step.knowledge_points.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {step.knowledge_points.map((kp) => (
-                        <span key={kp} className="badge">{kp}</span>
+                        <span key={kp} className="badge">
+                          {kp}
+                        </span>
                       ))}
                     </div>
                   )}
                   {step.code_module && (
-                    <div className="text-pla-muted">对应模块：{step.code_module}</div>
+                    <div className="text-pla-muted">
+                      代码设计阶段对应模块：{step.code_module}
+                    </div>
                   )}
                   {step.common_errors && step.common_errors.length > 0 && (
                     <div>
@@ -100,6 +140,11 @@ export default function ExecutionStepsPanel({ steps, activeStepId, onSelectStep 
             </div>
           )
         })}
+        {hasPending && (
+          <div className="rounded-lg border border-dashed border-pla-border/60 p-3 text-xs text-pla-muted text-center leading-relaxed">
+            {pendingHint || '完成当前引导性提问后，将揭示下一步操作描述…'}
+          </div>
+        )}
       </div>
     </div>
   )

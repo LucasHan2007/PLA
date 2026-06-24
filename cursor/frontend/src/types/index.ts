@@ -1,3 +1,5 @@
+export type WorkflowPhase = 'intro' | 'project_analysis' | 'operation_desc' | 'code_design'
+
 export interface LogicPlanItem {
   id: number
   title: string
@@ -45,6 +47,8 @@ export interface AIStructuredOutput {
   follow_up_questions: FollowUpQuestion[]
   socratic_mode: boolean
   assistant_message: string
+  analysis_complete?: boolean
+  operations_complete?: boolean
 }
 
 export interface SocraticAnswer {

@@ -160,6 +160,8 @@ def parse_structured_output(raw: dict[str, Any] | None, fallback_text: str = "")
         follow_up_questions=follow_up_questions,
         socratic_mode=raw.get("socratic_mode", True),
         assistant_message=raw.get("assistant_message", ""),
+        analysis_complete=bool(raw.get("analysis_complete", False)),
+        operations_complete=bool(raw.get("operations_complete", False)),
     )
 
 

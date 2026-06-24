@@ -50,6 +50,8 @@ class AIStructuredOutput(BaseModel):
     follow_up_questions: list[FollowUpQuestion] = Field(default_factory=list)
     socratic_mode: bool = True
     assistant_message: str = ""
+    analysis_complete: bool = False
+    operations_complete: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -76,6 +78,9 @@ class SocraticAnswer(BaseModel):
     answer: str = ""
 
 
+WorkflowPhase = Literal["intro", "project_analysis", "operation_desc", "code_design"]
+
+
 class ChatRequest(BaseModel):
     message: str = ""
     socratic_answers: list[SocraticAnswer] = Field(default_factory=list)
@@ -83,6 +88,12 @@ class ChatRequest(BaseModel):
     step_id: int | None = None
     code_context: str | None = None
     error_context: str | None = None
+    workflow_phase: WorkflowPhase = "intro"
+    revealed_plan_count: int = 0
+    revealed_step_count: int = 0
+    revealed_code_count: int = 0
+    debug_skip_socratic: bool = False
+    debug_skip_to_phase: WorkflowPhase | None = None
 
 
 class ChatResponse(BaseModel):

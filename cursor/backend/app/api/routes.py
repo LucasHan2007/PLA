@@ -4,6 +4,7 @@ from app.schemas.ai_output import ChatRequest, ChatResponse
 from app.services.history_service import history_service
 from app.services.llm_service import llm_service
 from app.services.post_processor import build_mindmap_data
+from app.services.phase_guard import sanitize_output_for_phase
 from app.services.prompt_builder import format_user_submission
 
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -17,8 +18,11 @@ async def chat(request: ChatRequest):
     ]
     combined_message = format_user_submission(request.message, socratic_payload)
 
-    if not combined_message.strip():
+    if not combined_message.strip() and not request.debug_skip_to_phase:
         raise HTTPException(status_code=400, detail="请至少填写自由对话内容或一个引导性问题的回答")
+
+    if request.debug_skip_to_phase and not combined_message.strip():
+        combined_message = f"[调试] 跳过至阶段：{request.debug_skip_to_phase}"
 
     session_id = history_service.get_or_create(request.session_id)
     history = history_service.get_history(session_id)
@@ -33,7 +37,14 @@ async def chat(request: ChatRequest):
         step_id=request.step_id,
         chat_message=request.message,
         socratic_answers=socratic_payload,
+        workflow_phase=request.workflow_phase,
+        revealed_plan_count=request.revealed_plan_count,
+        revealed_step_count=request.revealed_step_count,
+        revealed_code_count=request.revealed_code_count,
+        debug_skip_socratic=request.debug_skip_socratic,
+        debug_skip_to_phase=request.debug_skip_to_phase,
     )
+    output = sanitize_output_for_phase(output, request.workflow_phase)
 
     assistant_text = output.assistant_message or output.task_summary or "已生成学习方案"
     history_service.add_message(session_id, "assistant", assistant_text, output)
