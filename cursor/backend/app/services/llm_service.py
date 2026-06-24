@@ -3,7 +3,12 @@ import httpx
 from app.config import settings
 from app.schemas.ai_output import AIStructuredOutput
 from app.services.post_processor import parse_structured_output, process_llm_response
-from app.services.prompt_builder import build_demo_output, build_messages
+from app.services.prompt_builder import (
+    build_demo_output,
+    build_messages,
+    build_task_qa_demo_answer,
+    build_task_qa_messages,
+)
 
 
 class LLMService:
@@ -50,6 +55,57 @@ class LLMService:
         )
         raw_text = await self._call_api(messages)
         return process_llm_response(raw_text)
+
+    async def task_qa(
+        self,
+        question: str,
+        history: list[dict[str, str]],
+        *,
+        project_name: str,
+        step_index: int,
+        step_total: int,
+        plan_title: str,
+        plan_content: str,
+        task_title: str,
+        task_summary: str,
+    ) -> str:
+        if not settings.llm_configured:
+            return build_task_qa_demo_answer(
+                project_name=project_name,
+                plan_title=plan_title,
+                task_title=task_title,
+                task_summary=task_summary,
+            )
+
+        messages = build_task_qa_messages(
+            question,
+            history,
+            project_name=project_name,
+            step_index=step_index,
+            step_total=step_total,
+            plan_title=plan_title,
+            plan_content=plan_content,
+            task_title=task_title,
+            task_summary=task_summary,
+        )
+        return await self._call_api_plain(messages)
+
+    async def _call_api_plain(self, messages: list[dict[str, str]]) -> str:
+        url = f"{settings.llm_api_base.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.llm_api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": settings.llm_model,
+            "messages": messages,
+            "temperature": 0.5,
+        }
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            return (data["choices"][0]["message"]["content"] or "").strip()
 
     async def _call_api(self, messages: list[dict[str, str]]) -> str:
         url = f"{settings.llm_api_base.rstrip('/')}/chat/completions"

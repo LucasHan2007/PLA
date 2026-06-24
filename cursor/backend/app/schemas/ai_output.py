@@ -121,6 +121,25 @@ class ChatResponse(BaseModel):
     raw_fallback: str | None = None
 
 
+class TaskQaRequest(BaseModel):
+    """项目解析阶段：任务答疑（仅问答，不更新结构化方案）。"""
+
+    message: str
+    session_id: str | None = None
+    project_name: str = ""
+    step_index: int = 1
+    step_total: int = 1
+    plan_title: str = ""
+    plan_content: str = ""
+    task_title: str = ""
+    task_summary: str = ""
+
+
+class TaskQaResponse(BaseModel):
+    session_id: str
+    answer: str
+
+
 class SessionSummary(BaseModel):
     id: str
     title: str

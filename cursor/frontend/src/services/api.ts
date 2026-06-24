@@ -59,6 +59,58 @@ export async function sendChat(payload: {
   return res.json()
 }
 
+export async function sendTaskQa(payload: {
+  message: string
+  session_id?: string | null
+  project_name: string
+  step_index: number
+  step_total: number
+  plan_title: string
+  plan_content: string
+  task_title: string
+  task_summary: string
+}): Promise<{ session_id: string; answer: string }> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(`${API}/task-qa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        message: payload.message,
+        session_id: payload.session_id ?? null,
+        project_name: payload.project_name,
+        step_index: payload.step_index,
+        step_total: payload.step_total,
+        plan_title: payload.plan_title,
+        plan_content: payload.plan_content,
+        task_title: payload.task_title,
+        task_summary: payload.task_summary,
+      }),
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('请求超时，请确认后端已启动（端口 8000）并重试')
+    }
+    throw new Error('无法连接后端，请确认已运行 start-backend.bat 或 uvicorn')
+  } finally {
+    clearTimeout(timer)
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(
+      typeof err.detail === 'string'
+        ? err.detail
+        : `请求失败 (${res.status})，请检查后端是否正常运行`,
+    )
+  }
+  return res.json()
+}
+
 export async function fetchSessions(): Promise<SessionSummary[]> {
   const res = await fetch(`${API}/sessions`)
   const data = await res.json()

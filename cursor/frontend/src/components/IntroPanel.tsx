@@ -1,99 +1,83 @@
-interface Props {
-  projectName: string
-  projectDescription: string
-  onProjectNameChange: (v: string) => void
-  onProjectDescriptionChange: (v: string) => void
-  onSubmit: () => void
-  canSubmit: boolean
-  loading: boolean
-}
+import type { PresetProject } from '../data/mnistDigitProject'
 
-function isSubmitShortcut(e: React.KeyboardEvent) {
-  return e.key === 'Enter' && (e.ctrlKey || e.metaKey)
+interface Props {
+  projects: PresetProject[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+  onStart: () => void
+  canStart: boolean
 }
 
 export default function IntroPanel({
-  projectName,
-  projectDescription,
-  onProjectNameChange,
-  onProjectDescriptionChange,
-  onSubmit,
-  canSubmit,
-  loading,
+  projects,
+  selectedId,
+  onSelect,
+  onStart,
+  canStart,
 }: Props) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (isSubmitShortcut(e)) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canStart) {
       e.preventDefault()
-      if (canSubmit && !loading) onSubmit()
+      onStart()
     }
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" onKeyDown={handleKeyDown}>
       <div className="flex-1 overflow-auto p-6 space-y-5 min-h-0">
         <div className="text-center space-y-2 pb-1">
           <div className="text-3xl">👋</div>
           <h2 className="text-base font-medium text-pla-text">欢迎使用 PLA</h2>
           <p className="text-sm text-pla-muted leading-relaxed">
-            请填写项目名称；项目描述可选。提交后 AI 将为你做初步「项目解析」。
+            请选择一个预设学习项目。项目解析、操作描述与代码设计内容已内置，将分步引导学习。
           </p>
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="project-name" className="text-sm text-pla-text">
-            项目名称
-          </label>
-          <input
-            id="project-name"
-            type="text"
-            value={projectName}
-            onChange={(e) => onProjectNameChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="例如：手写数字识别"
-            disabled={loading}
-            className="w-full rounded-lg bg-pla-panel border border-pla-border px-3 py-2 text-sm focus:outline-none focus:border-pla-accent disabled:opacity-60"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="project-desc" className="text-sm text-pla-text">
-            项目描述<span className="text-pla-muted font-normal">（可选）</span>
-          </label>
-          <textarea
-            id="project-desc"
-            value={projectDescription}
-            onChange={(e) => onProjectDescriptionChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="可补充项目目标、技术栈、约束等；留空则仅根据项目名称解析…"
-            rows={5}
-            disabled={loading}
-            className="w-full resize-none rounded-lg bg-pla-panel border border-pla-border px-3 py-2 text-sm focus:outline-none focus:border-pla-accent disabled:opacity-60"
-          />
+          <div className="text-sm text-pla-text">可选项目</div>
+          <div className="space-y-2">
+            {projects.map((project) => {
+              const selected = selectedId === project.id
+              return (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => onSelect(project.id)}
+                  className={`w-full text-left rounded-xl border p-4 transition-colors ${
+                    selected
+                      ? 'border-pla-accent bg-pla-accent/10 ring-1 ring-pla-accent/30'
+                      : 'border-pla-border hover:border-pla-accent/40 hover:bg-pla-panel/80'
+                  }`}
+                >
+                  <div className="font-medium text-sm text-pla-text">{project.name}</div>
+                  <div className="text-xs text-pla-muted mt-1.5 leading-relaxed">
+                    {project.shortDescription}
+                  </div>
+                  <div className="text-[10px] text-pla-accent/80 mt-2">
+                    {project.output.logic_plan.length} 项解析 ·{' '}
+                    {project.output.execution_steps.length} 个大步骤 ·{' '}
+                    {project.output.code_blocks.length} 个代码模块
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
       <div className="shrink-0 px-6 py-4 border-t border-pla-border bg-pla-panel/60 flex flex-col sm:flex-row items-center justify-between gap-3">
         <span className="text-xs text-pla-muted text-center sm:text-left">
-          项目名称必填，描述可选；Ctrl+Enter 提交
+          选择项目后点击开始；Ctrl+Enter 快捷开始
         </span>
         <button
           type="button"
-          onClick={onSubmit}
-          disabled={loading || !canSubmit}
+          onClick={onStart}
+          disabled={!canStart}
           className="w-full sm:w-auto px-6 py-2 rounded-lg bg-pla-accent hover:bg-pla-accentHover disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium transition-colors shrink-0"
         >
-          {loading ? '提交中...' : '开始解析 (Ctrl+Enter)'}
+          开始学习
         </button>
       </div>
     </div>
   )
-}
-
-export function formatIntroMessage(projectName: string, projectDescription: string) {
-  const name = projectName.trim()
-  const desc = projectDescription.trim()
-  if (desc) {
-    return `项目名称：${name}\n项目描述：${desc}`
-  }
-  return `项目名称：${name}`
 }

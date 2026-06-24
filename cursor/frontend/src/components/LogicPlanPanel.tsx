@@ -8,6 +8,7 @@ interface Props {
   totalCount?: number
   pendingHint?: string
   dynamicMode?: boolean
+  presetMode?: boolean
   loading?: boolean
 }
 
@@ -19,10 +20,11 @@ export default function LogicPlanPanel({
   totalCount,
   pendingHint,
   dynamicMode,
+  presetMode,
   loading,
 }: Props) {
   const total = totalCount ?? logicPlan.length
-  const hasPending = !dynamicMode && total > logicPlan.length
+  const hasPending = (presetMode || !dynamicMode) && total > logicPlan.length
 
   if (!logicPlan.length && !hasPending) {
     return (
@@ -32,8 +34,8 @@ export default function LogicPlanPanel({
         </div>
         <div className="panel-body text-pla-muted text-sm flex items-center justify-center text-center px-6 leading-relaxed">
           {loading
-            ? 'AI 正在根据你的项目描述做初步解析…'
-            : '提交项目描述后，AI 将在此展示初步解析，并随你的反馈动态更新。'}
+            ? '加载中…'
+            : '选择预设项目后，项目解析将在此分步呈现。'}
         </div>
       </div>
     )
@@ -47,6 +49,12 @@ export default function LogicPlanPanel({
           <span className="ml-auto text-xs text-pla-muted">
             {loading ? '更新中…' : `${logicPlan.length} 项 · 动态方案`}
           </span>
+        ) : presetMode ? (
+          total > 0 && (
+            <span className="ml-auto text-xs text-pla-muted">
+              {logicPlan.length}/{total} 项 · 预设方案
+            </span>
+          )
         ) : (
           total > 0 && (
             <span className="ml-auto text-xs text-pla-muted">
@@ -60,9 +68,9 @@ export default function LogicPlanPanel({
           {taskSummary}
         </div>
       )}
-      {dynamicMode && logicPlan.length > 0 && (
+      {presetMode && logicPlan.length > 0 && (
         <div className="px-4 py-1.5 text-[11px] text-pla-accent/90 border-b border-pla-border/50 bg-pla-accent/5">
-          以下为 AI 基于当前信息的解析草案；回答下方问题或补充对话后，条目会增删改以贴合你的项目。
+          以下为预设项目解析，分步呈现；阅读当前任务后点击「下一步」揭示下一项。
         </div>
       )}
       <div className="panel-body space-y-1">

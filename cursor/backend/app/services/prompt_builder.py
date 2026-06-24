@@ -230,6 +230,64 @@ def build_messages(
     return messages
 
 
+TASK_QA_SYSTEM_PROMPT = """你是 PLA（Programming Learning Assistant）的项目学习助手。
+
+当前场景：用户正在学习一个**已由 PLA 内置完整方案**的预设项目，处于「项目解析」阶段的「任务答疑」。
+用户对**当前步骤的任务**有疑问，向你提问。
+
+你的职责：
+1. 仅回答用户关于当前步骤解析、当前任务、或该项目宏观设计的问题。
+2. 回答应简洁、清晰、面向初学者，使用中文。
+3. **禁止**要求用户向你提交任务答案、禁止苏格拉底式反问、禁止输出 JSON。
+4. **禁止**修改或重新生成整套 logic_plan / execution_steps / code_blocks；方案已固定。
+5. 若问题超出当前步骤，可简要说明并引导用户聚焦本步任务。
+6. 直接给出解答，不要开场白套话。"""
+
+
+def build_task_qa_messages(
+    question: str,
+    history: list[dict[str, str]],
+    *,
+    project_name: str,
+    step_index: int,
+    step_total: int,
+    plan_title: str,
+    plan_content: str,
+    task_title: str,
+    task_summary: str,
+) -> list[dict[str, str]]:
+    context = (
+        f"【内置项目】{project_name}\n"
+        f"【当前进度】项目解析 第 {step_index}/{step_total} 步\n"
+        f"【本步解析】{plan_title}：{plan_content}\n"
+        f"【本步任务】{task_title}：{task_summary}\n"
+        "（以上方案为 PLA 预设，请勿更改。）"
+    )
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": TASK_QA_SYSTEM_PROMPT},
+        {"role": "system", "content": context},
+    ]
+    for msg in history[-16:]:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": question.strip()})
+    return messages
+
+
+def build_task_qa_demo_answer(
+    *,
+    project_name: str,
+    plan_title: str,
+    task_title: str,
+    task_summary: str,
+) -> str:
+    return (
+        f"（离线演示模式：未配置 LLM API Key，无法调用 AI。）\n\n"
+        f"当前为「{project_name}」·「{plan_title}」· 任务「{task_title}」。\n"
+        f"本步任务：{task_summary}\n\n"
+        f"请在 backend/.env 中配置 LLM_API_KEY 后重试，以获得 AI 解答。"
+    )
+
+
 def format_user_submission(chat_message: str, socratic_answers: list[dict[str, str]]) -> str:
     """Merge free-form chat and selective Socratic Q&A into one user turn for history storage."""
     parts: list[str] = []

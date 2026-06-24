@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.schemas.ai_output import ChatRequest, ChatResponse
+from app.schemas.ai_output import ChatRequest, ChatResponse, TaskQaRequest, TaskQaResponse
 from app.services.history_service import history_service
 from app.services.llm_service import llm_service
 from app.services.post_processor import build_mindmap_data
@@ -49,6 +49,34 @@ async def chat(request: ChatRequest):
     history_service.add_message(session_id, "assistant", assistant_text, output)
 
     return ChatResponse(session_id=session_id, output=output, raw_fallback=raw_fallback)
+
+
+@router.post("/task-qa", response_model=TaskQaResponse)
+async def task_qa(request: TaskQaRequest):
+    question = request.message.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="请输入要问的问题")
+
+    session_id = history_service.get_or_create(request.session_id)
+    history = history_service.get_history(session_id)
+
+    user_label = f"【任务答疑·第{request.step_index}步】{question}"
+    history_service.add_message(session_id, "user", user_label)
+
+    answer = await llm_service.task_qa(
+        question,
+        history[:-1],
+        project_name=request.project_name,
+        step_index=request.step_index,
+        step_total=request.step_total,
+        plan_title=request.plan_title,
+        plan_content=request.plan_content,
+        task_title=request.task_title,
+        task_summary=request.task_summary,
+    )
+
+    history_service.add_message(session_id, "assistant", answer)
+    return TaskQaResponse(session_id=session_id, answer=answer)
 
 
 @router.get("/sessions")

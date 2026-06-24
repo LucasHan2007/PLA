@@ -9,6 +9,7 @@ interface Props {
   onInputChange: (v: string) => void
   onKeyDown?: (e: React.KeyboardEvent) => void
   introMode?: boolean
+  variant?: 'free' | 'task-qa'
 }
 
 export default function ChatPanel({
@@ -19,7 +20,9 @@ export default function ChatPanel({
   onInputChange,
   onKeyDown,
   introMode = false,
+  variant = 'free',
 }: Props) {
+  const isTaskQa = variant === 'task-qa'
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -30,7 +33,8 @@ export default function ChatPanel({
     <div className={`flex flex-col h-full ${introMode ? 'bg-transparent' : 'bg-pla-bg'}`}>
       {!introMode && (
         <div className="panel-header">
-          <span>💬</span> 自由对话
+          <span>{isTaskQa ? '❓' : '💬'}</span>{' '}
+          {isTaskQa ? '任务答疑' : '自由对话'}
           {terms.length > 0 && (
             <div className="ml-2 flex gap-1 overflow-x-auto max-w-[200px]">
               {terms.slice(0, 3).map((t) => (
@@ -59,8 +63,10 @@ export default function ChatPanel({
           </div>
         )}
         {!introMode && messages.length === 0 && (
-          <div className="text-sm text-pla-muted text-center py-4">
-            在此与 AI 自由交流：补充想法、提问、粘贴报错等
+          <div className="text-sm text-pla-muted text-center py-4 leading-relaxed px-2">
+            {isTaskQa
+              ? '针对上方「本步任务」提问，由 AI 解答（需启动后端并配置 LLM）'
+              : '在此与 AI 自由交流：补充想法、提问、粘贴报错等'}
           </div>
         )}
         <div className={introMode ? 'space-y-3' : ''}>
@@ -100,7 +106,9 @@ export default function ChatPanel({
         ))}
         </div>
         {loading && !introMode && (
-          <div className="text-sm text-pla-muted animate-pulse">AI 导师正在思考...</div>
+          <div className="text-sm text-pla-muted animate-pulse">
+            {isTaskQa ? 'PLA 正在解答…' : 'AI 导师正在思考...'}
+          </div>
         )}
         <div ref={bottomRef} />
       </div>
@@ -113,7 +121,9 @@ export default function ChatPanel({
           placeholder={
             introMode
               ? '例如：我想做一个手写数字识别项目…'
-              : '输入想对 AI 说的话（Ctrl+Enter 提交）...'
+              : isTaskQa
+                ? '例如：什么是监督学习？MNIST 为什么要分训练集和测试集？（Ctrl+Enter 提问）'
+                : '输入想对 AI 说的话（Ctrl+Enter 提交）...'
           }
           rows={introMode ? 4 : 3}
           className="w-full resize-none rounded-lg bg-pla-panel border border-pla-border px-3 py-2 text-sm focus:outline-none focus:border-pla-accent"
