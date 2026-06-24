@@ -1,12 +1,8 @@
 import streamlit as st
 
-# 定义页面
-login = st.Page("pages/login.py", title="登录页面", icon="📄")
-page1 = st.Page("pages/page1.py", title="页面1", icon="📄")
+login = st.Page("pages/login.py", title="登录", icon="🔑")
+ide = st.Page("pages/ide.py", title="IDE 工作区", icon="📝", default=True)
+page1 = st.Page("pages/page1.py", title="简洁聊天", icon="💬")
 
-
-# 创建导航S
-pg = st.navigation([login,page1])
-
-# 运行当前选中的页面
+pg = st.navigation([login, ide, page1])
 pg.run()

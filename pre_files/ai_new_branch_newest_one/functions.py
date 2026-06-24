@@ -34,7 +34,7 @@ def message_to_string(messages):
     return set,history
 '''知识树节点处理和相关操作'''
 class SessionNode:
-    def __init__(self, parent_id=None, title="", messages=None, knowledge_points=None):
+    def __init__(self, parent_id=None, title="", messages=None, knowledge_points=None, code=None):
         self.id = str(uuid.uuid4())
         self.parent_id = parent_id
         self.title = title
@@ -44,6 +44,9 @@ class SessionNode:
         self.last_highlights = []
         self.archived = False
         self.merged_to = None
+        self.code = code if code is not None else "# 在此编写 Python 代码\n"
+        self.logic_plan = []
+        self.execution_steps = []
 
 
 def init_tree():
@@ -68,6 +71,38 @@ def sync_current_node_messages():
     node_id = st.session_state.get("current_node_id")
     if node_id and node_id in st.session_state.tree_nodes:
         st.session_state.tree_nodes[node_id].messages = st.session_state.current_messages
+
+
+def get_node_code(node_id=None):
+    node = get_node(node_id or st.session_state.get("current_node_id"))
+    if not node:
+        return ""
+    if not getattr(node, "code", None):
+        node.code = "# 在此编写 Python 代码\n"
+    return node.code
+
+
+def save_node_code(code, node_id=None):
+    node = get_node(node_id or st.session_state.get("current_node_id"))
+    if node:
+        node.code = code or ""
+        st.session_state.code_dirty = False
+
+
+def check_python_syntax(code):
+    """静态语法检查，返回 diagnostics 列表。"""
+    import ast
+    diagnostics = []
+    try:
+        ast.parse(code or "")
+    except SyntaxError as e:
+        diagnostics.append({
+            "line": e.lineno or 1,
+            "col": e.offset or 1,
+            "message": e.msg,
+            "severity": "error",
+        })
+    return diagnostics
 
 
 def create_sub_node(parent_id, title):
@@ -479,3 +514,102 @@ def _merge_and_switch(source_id):
     if node.parent_id:
         merge_node(source_id, node.parent_id)
         switch_to_node(node.parent_id)
+
+
+def inject_vscode_css():
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] { background-color: #f3f3f3; border-right: 1px solid #e5e5e5; }
+        [data-testid="stSidebar"] .stRadio > label { font-size: 12px; font-weight: 600; }
+        .vscode-status-bar {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 22px;
+            background: #007acc; color: #fff; font-size: 12px;
+            display: flex; align-items: center; padding: 0 12px; gap: 16px; z-index: 999;
+        }
+        .vscode-tab-bar {
+            background: #f3f3f3; border-bottom: 1px solid #e5e5e5;
+            padding: 6px 12px; font-size: 13px; color: #333;
+        }
+        .block-container { padding-bottom: 2rem; max-width: 100%; }
+        [data-testid="column"] { min-height: 640px; }
+        [data-testid="column"]:first-of-type {
+            border-right: 1px solid #e5e5e5;
+            padding-right: 12px;
+        }
+        [data-testid="column"]:last-of-type { padding-left: 4px; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_status_bar():
+    model = st.session_state.get("selected_model", "未选择")
+    breadcrumb = get_breadcrumb()
+    path = " › ".join(breadcrumb) if breadcrumb else "根对话"
+    dirty = "未保存 *" if st.session_state.get("code_dirty") else "已保存"
+    st.markdown(
+        f'<div class="vscode-status-bar">'
+        f'<span>Python</span><span>{dirty}</span>'
+        f'<span>{model}</span><span>{path}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_vscode_sidebar():
+    """VS Code 风格侧边栏：Explorer / Plan / Settings。"""
+    view = st.radio(
+        "视图",
+        ["Explorer", "Plan", "Settings"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="sidebar_view",
+    )
+    st.divider()
+
+    if view == "Explorer":
+        render_tree_sidebar()
+    elif view == "Plan":
+        st.subheader("逻辑方案")
+        node = get_node(st.session_state.current_node_id)
+        plans = getattr(node, "logic_plan", None) or []
+        if plans:
+            for item in plans:
+                st.markdown(f"**{item.get('title', '步骤')}**")
+                st.caption(item.get("content", ""))
+        else:
+            st.info("暂无逻辑方案，与 AI 对话后将在此展示。")
+        st.subheader("执行步骤")
+        steps = getattr(node, "execution_steps", None) or []
+        if steps:
+            for step in steps:
+                st.markdown(f"- {step.get('title', step.get('step_id', ''))}")
+        else:
+            st.caption("暂无执行步骤。")
+    else:
+        from stream_chat import get_model_options, PROMPT_MODES
+        st.subheader("对话设置")
+        mode_options = list(PROMPT_MODES.keys())
+        current_mode = st.session_state.get("prompt_mode", "直接解答")
+        st.session_state.prompt_mode = st.selectbox(
+            "回答风格",
+            mode_options,
+            index=mode_options.index(current_mode) if current_mode in mode_options else 0,
+        )
+        if st.session_state.get("client"):
+            model_options = get_model_options(st)
+            default_model = st.session_state.get("selected_model", model_options[0])
+            if default_model not in model_options:
+                default_model = model_options[0]
+            st.session_state.selected_model = st.selectbox(
+                "模型",
+                model_options,
+                index=model_options.index(default_model),
+            )
+        st.divider()
+        st.write(f"用户：{st.session_state.get('username', '')}")
+        st.write(f"供应商：{st.session_state.get('api_provider', '未设置')}")
+        if st.button("退出登录", use_container_width=True, key="ide_logout"):
+            st.session_state.clear()
+            st.switch_page("pages/login.py")

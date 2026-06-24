@@ -63,7 +63,7 @@ with st.form("login_form"):
                         st.success("管理员登录成功！")
                         st.balloons()
                         
-                        st.switch_page("pages/page1.py")
+                        st.switch_page("pages/ide.py")
                     else:
                         st.error("环境变量「墙木的key」未设置")
 
@@ -77,7 +77,7 @@ with st.form("login_form"):
                         st.success("登录成功！")
                         st.balloons()
                     
-                        st.switch_page("pages/page1.py")
+                        st.switch_page("pages/ide.py")
                     else:
                         st.warning("自定义 API 地址和 Key 不能为空")
 
@@ -90,7 +90,7 @@ with st.form("login_form"):
                     st.success("连接成功！")
                     st.balloons()
                 
-                    st.switch_page("pages/page1.py")
+                    st.switch_page("pages/ide.py")
                 else:
                     st.error("请填写完整的 API Key")
             except Exception as e:
@@ -106,4 +106,4 @@ if st.button("游客登录"):
     st.success("游客登录成功！")
     st.balloons()
     
-    st.switch_page("pages/page1.py")
+    st.switch_page("pages/ide.py")
