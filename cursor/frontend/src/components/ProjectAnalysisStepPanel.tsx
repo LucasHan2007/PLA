@@ -72,14 +72,14 @@ export default function ProjectAnalysisStepPanel({
           <div className="mt-3 space-y-3">
             <div className="rounded-lg border border-pla-border/50 bg-pla-bg/30 px-3 py-2.5">
               <div className="text-[10px] uppercase tracking-wide text-pla-muted mb-1.5">
-                专业版
+                任务说明--专业版
               </div>
               <p className="text-sm text-pla-text leading-relaxed">{task.summary}</p>
             </div>
 
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
               <div className="text-[10px] uppercase tracking-wide text-amber-400/90 mb-1.5">
-                生动版
+                任务说明--生动版
               </div>
               <p className="text-sm text-pla-text leading-relaxed">{task.summaryVivid}</p>
             </div>

@@ -4,7 +4,7 @@ interface Props {
   projects: PresetProject[]
   selectedId: string | null
   onSelect: (id: string) => void
-  onStart: () => void
+  onStart: (projectId?: string) => void
   canStart: boolean
 }
 
@@ -43,6 +43,7 @@ export default function IntroPanel({
                   key={project.id}
                   type="button"
                   onClick={() => onSelect(project.id)}
+                  onDoubleClick={() => onStart(project.id)}
                   className={`w-full text-left rounded-xl border p-4 transition-colors ${
                     selected
                       ? 'border-pla-accent bg-pla-accent/10 ring-1 ring-pla-accent/30'
@@ -67,11 +68,11 @@ export default function IntroPanel({
 
       <div className="shrink-0 px-6 py-4 border-t border-pla-border bg-pla-panel/60 flex flex-col sm:flex-row items-center justify-between gap-3">
         <span className="text-xs text-pla-muted text-center sm:text-left">
-          选择项目后点击开始；Ctrl+Enter 快捷开始
+          单击选择项目后点击开始，或双击项目卡片直接开始；Ctrl+Enter 快捷开始
         </span>
         <button
           type="button"
-          onClick={onStart}
+          onClick={() => onStart()}
           disabled={!canStart}
           className="w-full sm:w-auto px-6 py-2 rounded-lg bg-pla-accent hover:bg-pla-accentHover disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium transition-colors shrink-0"
         >

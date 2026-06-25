@@ -21,9 +21,9 @@ export function advanceAnalysisNextStep(
   return { revealedPlanCount, enterOperationDesc: true }
 }
 
-export function presetAnalysisIntroMessage(_project: PresetProject): string {
+export function presetAnalysisIntroMessage(project: PresetProject): string {
   return (
-    '1. 阅读左侧「本步解析」与「本步任务」，并按「本步任务」完成手写数字识别项目在本步的待办工作。\n' +
+    `1. 阅读左侧「本步解析」与「本步任务」，并按「本步任务」完成${project.name}项目在本步的待办工作。\n` +
     '2. 有疑问在此提问。\n' +
     '3. 完成后点击「下一步」。'
   )

@@ -7,6 +7,7 @@ import IntroPanel from './components/IntroPanel'
 import InteractionPanel from './components/InteractionPanel'
 import ProjectAnalysisStepPanel from './components/ProjectAnalysisStepPanel'
 import ReferenceSidebar from './components/ReferenceSidebar'
+import TaskQaSidebar from './components/TaskQaSidebar'
 import { SKIP_ANSWER } from './components/SocraticPanel'
 import { getPresetProject, PRESET_PROJECTS } from './data/presetProjects'
 import type { PresetProject } from './data/mnistDigitProject'
@@ -144,9 +145,10 @@ export default function App() {
     })
   }
 
-  const handleProjectStart = useCallback(() => {
-    if (!selectedProjectId) return
-    const project = getPresetProject(selectedProjectId)
+  const handleProjectStart = useCallback((projectId?: string) => {
+    const id = projectId ?? selectedProjectId
+    if (!id) return
+    const project = getPresetProject(id)
     if (!project) return
 
     setSelectedProjectId(project.id)
@@ -464,7 +466,7 @@ export default function App() {
         <div className="flex-1 flex min-h-0">
           {presetOutput && (
             <>
-              <div className="flex-[3] min-w-0 min-h-0 overflow-hidden">
+              <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
                 <ProjectAnalysisStepPanel
                   taskSummary={presetOutput.task_summary}
                   planItem={currentPlanItem}
@@ -473,27 +475,23 @@ export default function App() {
                   stepTotal={planTotal}
                 />
               </div>
-              <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
-                <InteractionPanel
-                  questions={socraticQuestions}
-                  socraticAnswers={socraticAnswers}
-                  onSocraticAnswerChange={handleSocraticAnswerChange}
-                  onSkipQuestion={handleSkipQuestion}
-                  messages={messages}
-                  terms={presetOutput.terms || []}
-                  loading={loading}
-                  chatInput={chatInput}
-                  onChatInputChange={setChatInput}
-                  onSubmit={handleSubmit}
-                  canSubmit={canSubmit}
-                  mode="analysis"
-                  layout="sidebar"
-                  onNextAnalysisStep={handleAnalysisNextStep}
-                  onPrevAnalysisStep={handleAnalysisPrevStep}
-                  canPrevAnalysisStep={analysisStepIndex > 1}
-                  nextAnalysisStepLabel={analysisNextLabel}
-                />
-              </div>
+              <TaskQaSidebar
+                questions={socraticQuestions}
+                socraticAnswers={socraticAnswers}
+                onSocraticAnswerChange={handleSocraticAnswerChange}
+                onSkipQuestion={handleSkipQuestion}
+                messages={messages}
+                terms={presetOutput.terms || []}
+                loading={loading}
+                chatInput={chatInput}
+                onChatInputChange={setChatInput}
+                onSubmit={handleSubmit}
+                canSubmit={canSubmit}
+                onNextAnalysisStep={handleAnalysisNextStep}
+                onPrevAnalysisStep={handleAnalysisPrevStep}
+                canPrevAnalysisStep={analysisStepIndex > 1}
+                nextAnalysisStepLabel={analysisNextLabel}
+              />
             </>
           )}
         </div>

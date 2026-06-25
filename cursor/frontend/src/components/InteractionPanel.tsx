@@ -20,6 +20,7 @@ interface Props {
   onPrevAnalysisStep?: () => void
   canPrevAnalysisStep?: boolean
   nextAnalysisStepLabel?: string
+  collapseControl?: { onToggle: () => void }
 }
 
 function isSubmitShortcut(e: React.KeyboardEvent) {
@@ -44,6 +45,7 @@ export default function InteractionPanel({
   onPrevAnalysisStep,
   canPrevAnalysisStep = false,
   nextAnalysisStepLabel = '下一步',
+  collapseControl,
 }: Props) {
   const handleSubmitShortcut = (e: React.KeyboardEvent) => {
     if (isSubmitShortcut(e)) {
@@ -59,7 +61,7 @@ export default function InteractionPanel({
   return (
     <div
       className={`flex flex-col h-full bg-pla-bg ${
-        isIntro ? '' : isSidebar ? 'border-l border-pla-border' : 'border-t border-pla-border'
+        isIntro ? '' : isSidebar ? '' : 'border-t border-pla-border'
       }`}
     >
       <div className="flex flex-1 min-h-0">
@@ -85,6 +87,7 @@ export default function InteractionPanel({
             onKeyDown={handleSubmitShortcut}
             introMode={isIntro}
             variant={isAnalysis ? 'task-qa' : 'free'}
+            onCollapse={collapseControl?.onToggle}
           />
         </div>
       </div>
