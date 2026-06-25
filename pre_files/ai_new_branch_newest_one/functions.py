@@ -520,8 +520,17 @@ def inject_vscode_css():
     st.markdown(
         """
         <style>
+        /* 隐藏 Streamlit 默认外壳 */
+        header[data-testid="stHeader"] { display: none !important; }
+        [data-testid="stToolbar"] { display: none !important; }
+        [data-testid="stDecoration"] { display: none !important; }
+        #MainMenu, footer, .stDeployButton { display: none !important; }
+        [data-testid="stSidebarNav"] { display: none !important; }
+        [data-testid="stSidebarNavItems"] { display: none !important; }
+        [data-testid="stSidebarHeader"] { display: none !important; }
         [data-testid="stSidebar"] { background-color: #f3f3f3; border-right: 1px solid #e5e5e5; }
         [data-testid="stSidebar"] .stRadio > label { font-size: 12px; font-weight: 600; }
+        .block-container { padding-top: 0.75rem; padding-bottom: 2.5rem; max-width: 100%; }
         .vscode-status-bar {
             position: fixed; bottom: 0; left: 0; right: 0; height: 22px;
             background: #007acc; color: #fff; font-size: 12px;
@@ -531,13 +540,24 @@ def inject_vscode_css():
             background: #f3f3f3; border-bottom: 1px solid #e5e5e5;
             padding: 6px 12px; font-size: 13px; color: #333;
         }
-        .block-container { padding-bottom: 2rem; max-width: 100%; }
-        [data-testid="column"] { min-height: 640px; }
+        .leetcode-panel-head {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #fafafa; border: 1px solid #e5e5e5; border-bottom: none;
+            border-radius: 8px 8px 0 0; padding: 8px 14px;
+            font-size: 13px; font-weight: 600; color: #262626;
+        }
+        .leetcode-panel-head .file-tag {
+            font-weight: 500; color: #007acc; background: #e8f4fd;
+            padding: 2px 8px; border-radius: 4px; font-size: 12px;
+        }
+        [data-testid="column"] { min-height: 680px; }
         [data-testid="column"]:first-of-type {
             border-right: 1px solid #e5e5e5;
-            padding-right: 12px;
+            padding-right: 8px;
         }
-        [data-testid="column"]:last-of-type { padding-left: 4px; }
+        [data-testid="column"]:last-of-type { padding-left: 8px; }
+        iframe { border: 1px solid #e5e5e5 !important; border-radius: 0 0 8px 8px !important; }
+        [data-testid="stVerticalBlockBorderWrapper"] { border-radius: 8px; }
         </style>
         """,
         unsafe_allow_html=True,

@@ -1,9 +1,24 @@
 let editor = null;
 let lastSent = "";
 let renderArgs = {};
+let debounceTimer = null;
+let editorFocused = false;
 
 function sendToStreamlit(type, data) {
   window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type }, data), "*");
+}
+
+function pushValueToStreamlit(value, action) {
+  const payload = { code: value, action: action || "edit" };
+  const serialized = JSON.stringify(payload);
+  if (serialized === lastSent) return;
+  lastSent = serialized;
+  sendToStreamlit("streamlit:setComponentValue", { value: payload });
+}
+
+function schedulePushValue(value) {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => pushValueToStreamlit(value, "edit"), 600);
 }
 
 function applyDiagnostics(diagnostics) {
@@ -25,9 +40,16 @@ function applyDiagnostics(diagnostics) {
 
 function setEditorValue(code) {
   if (!editor) return;
-  if (editor.getValue() !== code) {
-    editor.setValue(code || "");
+  const next = code || "";
+  if (editor.getValue() === next) return;
+  const position = editor.getPosition();
+  const scrollTop = editor.getScrollTop();
+  editor.setValue(next);
+  if (position) {
+    editor.setPosition(position);
   }
+  editor.setScrollTop(scrollTop);
+  lastSent = JSON.stringify({ code: next, action: "edit" });
 }
 
 function initMonaco(initialCode) {
@@ -41,27 +63,37 @@ function initMonaco(initialCode) {
       theme: "vs",
       automaticLayout: true,
       fontSize: 14,
+      lineHeight: 21,
       fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       lineNumbers: "on",
       renderLineHighlight: "all",
       tabSize: 4,
-      wordWrap: "on",
+      wordWrap: "off",
+      padding: { top: 8 },
+    });
+
+    editor.onDidFocusEditorText(() => {
+      editorFocused = true;
+    });
+    editor.onDidBlurEditorText(() => {
+      editorFocused = false;
+      pushValueToStreamlit(editor.getValue(), "edit");
     });
 
     editor.onDidChangeModelContent(() => {
-      const value = editor.getValue();
-      if (value !== lastSent) {
-        lastSent = value;
-        sendToStreamlit("streamlit:setComponentValue", { value });
-      }
+      schedulePushValue(editor.getValue());
     });
 
     document.getElementById("btn-save").onclick = () => {
-      const value = editor.getValue();
-      lastSent = value;
-      sendToStreamlit("streamlit:setComponentValue", { value });
+      clearTimeout(debounceTimer);
+      pushValueToStreamlit(editor.getValue(), "save");
+    };
+
+    document.getElementById("btn-check").onclick = () => {
+      clearTimeout(debounceTimer);
+      pushValueToStreamlit(editor.getValue(), "check");
     };
 
     document.getElementById("btn-format").onclick = () => {
@@ -84,11 +116,15 @@ window.addEventListener("message", (event) => {
   const code = renderArgs.code ?? "";
   if (!editor) {
     initMonaco(code);
+    lastSent = JSON.stringify({ code: code, action: "edit" });
+    return;
+  }
+  if (editorFocused) {
+    applyDiagnostics(renderArgs.diagnostics || []);
     return;
   }
   if (code !== editor.getValue()) {
     setEditorValue(code);
-    lastSent = code;
   }
   applyDiagnostics(renderArgs.diagnostics || []);
 });
