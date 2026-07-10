@@ -19,6 +19,7 @@ interface Props {
   onNextAnalysisStep?: () => void
   onPrevAnalysisStep?: () => void
   canPrevAnalysisStep?: boolean
+  canNextAnalysisStep?: boolean
   nextAnalysisStepLabel?: string
   collapseControl?: { onToggle: () => void }
 }
@@ -44,6 +45,7 @@ export default function InteractionPanel({
   onNextAnalysisStep,
   onPrevAnalysisStep,
   canPrevAnalysisStep = false,
+  canNextAnalysisStep = true,
   nextAnalysisStepLabel = '下一步',
   collapseControl,
 }: Props) {
@@ -117,7 +119,7 @@ export default function InteractionPanel({
             <button
               type="button"
               onClick={onNextAnalysisStep}
-              disabled={loading}
+              disabled={loading || !canNextAnalysisStep}
               className={`px-4 py-2 rounded-lg border border-pla-border hover:border-pla-accent/50 hover:bg-pla-accent/10 disabled:opacity-40 text-sm font-medium transition-colors ${isSidebar ? 'w-full' : ''}`}
             >
               {nextAnalysisStepLabel}

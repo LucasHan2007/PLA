@@ -121,6 +121,32 @@ class ChatResponse(BaseModel):
     raw_fallback: str | None = None
 
 
+class ProjectParseSection(BaseModel):
+    id: str
+    title: str
+    content: str
+
+
+class ProjectParseDocument(BaseModel):
+    """项目解析器生成的七段体系参考文件。"""
+
+    project_name: str
+    summary: str = ""
+    sections: list[ProjectParseSection] = Field(default_factory=list)
+
+
+class ProjectParseRequest(BaseModel):
+    project_name: str
+    project_hint: str = ""
+    session_id: str | None = None
+
+
+class ProjectParseResponse(BaseModel):
+    session_id: str
+    project_name: str
+    summary: str
+
+
 class TaskQaRequest(BaseModel):
     """项目解析阶段：任务答疑（仅问答，不更新结构化方案）。"""
 

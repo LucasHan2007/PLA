@@ -207,9 +207,9 @@ export default function App() {
     },
     [
       presetProject,
+      sessionId,
       currentAnalysisTask,
       currentPlanItem,
-      sessionId,
       analysisStepIndex,
       planTotal,
     ],
@@ -416,8 +416,14 @@ export default function App() {
     return `大步骤「${group.title}」中第 ${subIndex + 1} 个小步骤待揭示——请先回答下方引导性问题`
   }, [nextHiddenSubStep])
 
+  const analysisNextHandler = handleAnalysisNextStep
+
   const analysisNextLabel =
     analysisStepIndex >= planTotal ? '进入操作描述' : '下一步'
+
+  const canAnalysisNext = !loading
+
+  const canPrevAnalysisStep = analysisStepIndex > 1
 
   const handleCodeChange = (fileName: string, code: string) => {
     setCodeBlocks((prev) =>
@@ -487,9 +493,10 @@ export default function App() {
                 onChatInputChange={setChatInput}
                 onSubmit={handleSubmit}
                 canSubmit={canSubmit}
-                onNextAnalysisStep={handleAnalysisNextStep}
+                onNextAnalysisStep={analysisNextHandler}
                 onPrevAnalysisStep={handleAnalysisPrevStep}
-                canPrevAnalysisStep={analysisStepIndex > 1}
+                canPrevAnalysisStep={canPrevAnalysisStep}
+                canNextAnalysisStep={canAnalysisNext}
                 nextAnalysisStepLabel={analysisNextLabel}
               />
             </>

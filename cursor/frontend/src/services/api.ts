@@ -1,7 +1,9 @@
 import type { AIStructuredOutput, SessionSummary, SocraticAnswer, WorkflowPhase } from '../types'
+import type { ProjectParseResult } from '../types/projectParse'
 
 const API = '/api'
 const CHAT_TIMEOUT_MS = 120_000
+const PARSE_TIMEOUT_MS = 180_000
 
 export async function sendChat(payload: {
   message?: string
@@ -42,6 +44,46 @@ export async function sendChat(payload: {
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error('请求超时，请确认后端已启动（端口 8000）并重试')
+    }
+    throw new Error('无法连接后端，请确认已运行 start-backend.bat 或 uvicorn')
+  } finally {
+    clearTimeout(timer)
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(
+      typeof err.detail === 'string'
+        ? err.detail
+        : `请求失败 (${res.status})，请检查后端是否正常运行`,
+    )
+  }
+  return res.json()
+}
+
+export async function sendProjectParse(payload: {
+  project_name: string
+  project_hint?: string
+  session_id?: string | null
+}): Promise<ProjectParseResult> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(`${API}/project-parse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        project_name: payload.project_name,
+        project_hint: payload.project_hint ?? '',
+        session_id: payload.session_id ?? null,
+      }),
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('生成超时，请稍后重试')
     }
     throw new Error('无法连接后端，请确认已运行 start-backend.bat 或 uvicorn')
   } finally {

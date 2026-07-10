@@ -232,15 +232,15 @@ def build_messages(
 
 TASK_QA_SYSTEM_PROMPT = """你是 PLA（Programming Learning Assistant）的项目学习助手。
 
-当前场景：用户正在学习一个**已由 PLA 内置完整方案**的预设项目，处于「项目解析」阶段的「任务答疑」。
-用户对**当前步骤的任务**有疑问，向你提问。
+当前场景：用户正在「项目解析」阶段使用任务答疑。
+可能对**项目解析体系（核心参考文件）**或**当前分步任务**有疑问。
 
 你的职责：
-1. 仅回答用户关于当前步骤解析、当前任务、或该项目宏观设计的问题。
+1. 优先依据「项目解析体系」回答宏观设计问题；若提供了本步解析/任务，则结合当前步骤解答。
 2. 回答应简洁、清晰、面向初学者，使用中文。
 3. **禁止**要求用户向你提交任务答案、禁止苏格拉底式反问、禁止输出 JSON。
-4. **禁止**修改或重新生成整套 logic_plan / execution_steps / code_blocks；方案已固定。
-5. 若问题超出当前步骤，可简要说明并引导用户聚焦本步任务。
+4. **禁止**修改或重新生成整套解析体系；该文件是解读项目的核心参考。
+5. 若问题超出当前范围，可简要说明并引导用户聚焦相关内容。
 6. 直接给出解答，不要开场白套话。"""
 
 
@@ -255,14 +255,21 @@ def build_task_qa_messages(
     plan_content: str,
     task_title: str,
     task_summary: str,
+    framework_context: str = "",
 ) -> list[dict[str, str]]:
-    context = (
-        f"【内置项目】{project_name}\n"
-        f"【当前进度】项目解析 第 {step_index}/{step_total} 步\n"
-        f"【本步解析】{plan_title}：{plan_content}\n"
-        f"【本步任务】{task_title}：{task_summary}\n"
-        "（以上方案为 PLA 预设，请勿更改。）"
+    context_parts = [f"【项目】{project_name}"]
+    if framework_context.strip():
+        context_parts.append(framework_context.strip())
+    if plan_title or task_title:
+        context_parts.extend([
+            f"【当前进度】项目解析 第 {step_index}/{step_total} 步",
+            f"【本步解析】{plan_title}：{plan_content}",
+            f"【本步任务】{task_title}：{task_summary}",
+        ])
+    context_parts.append(
+        "回答须与上述项目解析体系及当前步骤一致；体系为解读该项目的核心参考，请勿推翻或重写整套方案。"
     )
+    context = "\n\n".join(context_parts)
     messages: list[dict[str, str]] = [
         {"role": "system", "content": TASK_QA_SYSTEM_PROMPT},
         {"role": "system", "content": context},
@@ -271,6 +278,92 @@ def build_task_qa_messages(
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": question.strip()})
     return messages
+
+
+PROJECT_PARSE_SECTION_SPECS: list[tuple[str, str]] = [
+    ("project_goal", "项目目标"),
+    ("problem_definition", "问题定义"),
+    ("data_flow", "数据输入、输出流与数据模型及约束"),
+    ("task_decomposition", "任务分解"),
+    ("knowledge_skills", "所涉及的知识与技能"),
+    ("implementation_plan", "实现方案"),
+    ("run_verify_debug", "代码的运行、验证与调试"),
+]
+
+PROJECT_PARSE_SYSTEM_PROMPT = """你是 PLA 的项目解析器（Project Parser）。
+
+用户给出一个编程/机器学习项目名称（可能附带简短说明）。你的任务是生成一份**从目标到代码实现**的完整解析体系，作为后续分步学习的核心参考文件。
+
+输出要求：
+1. 必须返回合法 JSON，不要包裹 markdown 代码块。
+2. sections 数组必须且仅包含以下 7 个 id（顺序固定）：
+   - project_goal（项目目标）
+   - problem_definition（问题定义）
+   - data_flow（数据输入、输出流与数据模型及约束——如图像任务中的 loss、输入尺寸、标签格式等）
+   - task_decomposition（任务分解——按阶段/模块拆解宏观工作）
+   - knowledge_skills（所涉及的知识与技能——按优先级列出）
+   - implementation_plan（实现方案——技术路线、关键模块、依赖与接口）
+   - run_verify_debug（代码的运行、验证与调试——如何跑通、指标、常见错误）
+3. 每个 section 的 content 用中文，面向初学者，具体可执行；可含分点（用 \\n 或 • 分隔），禁止空泛套话。
+4. 根据项目名称推断合理的技术领域（CV/NLP/Web/数据等），信息不足时在 content 中标注「待确认」并给出合理默认假设。
+5. summary 用一句话概括整个项目。
+
+JSON 结构：
+{
+  "project_name": "与用户输入一致",
+  "summary": "一句话概括",
+  "sections": [
+    {"id": "project_goal", "title": "项目目标", "content": "..."},
+    ...
+  ]
+}"""
+
+
+def build_project_parse_messages(project_name: str, project_hint: str = "") -> list[dict[str, str]]:
+    user_parts = [f"项目名称：{project_name.strip()}"]
+    if project_hint.strip():
+        user_parts.append(f"补充说明：{project_hint.strip()}")
+    user_parts.append("请生成完整的七段项目解析体系 JSON。")
+    return [
+        {"role": "system", "content": PROJECT_PARSE_SYSTEM_PROMPT},
+        {"role": "user", "content": "\n".join(user_parts)},
+    ]
+
+
+def build_project_parse_demo(project_name: str, project_hint: str = "") -> dict:
+    name = project_name.strip() or "示例项目"
+    hint = project_hint.strip()
+    hint_note = f"（补充：{hint}）" if hint else ""
+    sections = [
+        {
+            "id": sid,
+            "title": title,
+            "content": (
+                f"【离线演示】针对「{name}」的「{title}」占位内容{hint_note}。"
+                f"配置 LLM_API_KEY 后将由 AI 根据项目名生成具体解析。"
+            ),
+        }
+        for sid, title in PROJECT_PARSE_SECTION_SPECS
+    ]
+    return {
+        "project_name": name,
+        "summary": f"离线演示：{name} 的项目解析体系（需配置 LLM 以生成真实内容）",
+        "sections": sections,
+    }
+
+
+def format_framework_context(document: dict) -> str:
+    """将项目解析体系格式化为 task-qa 可用的纯文本上下文。"""
+    lines = [
+        f"【项目解析体系·核心参考文件】{document.get('project_name', '')}",
+        document.get("summary", ""),
+        "",
+    ]
+    for sec in document.get("sections", []):
+        lines.append(f"## {sec.get('title', '')}")
+        lines.append(sec.get("content", ""))
+        lines.append("")
+    return "\n".join(lines).strip()
 
 
 def build_task_qa_demo_answer(

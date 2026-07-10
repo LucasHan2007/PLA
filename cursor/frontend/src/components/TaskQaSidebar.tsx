@@ -28,6 +28,7 @@ interface Props {
   onNextAnalysisStep?: () => void
   onPrevAnalysisStep?: () => void
   canPrevAnalysisStep?: boolean
+  canNextAnalysisStep?: boolean
   nextAnalysisStepLabel?: string
 }
 

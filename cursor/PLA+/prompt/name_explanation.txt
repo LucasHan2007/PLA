@@ -1,0 +1,16 @@
+project_parser/ — 项目解析器
+
+knowledge_graph/ — 基础知识图谱
+
+user_profiling/ — 用户画像 & 学习节点
+
+pedagogy/ — 教学策略引擎
+
+implementation/ — 实现方案 & 代码辅助
+
+task_qa/ — 任务答疑（遗留）
+
+
+project_parser  →  knowledge_graph  →  user_profiling  →  pedagogy / implementation
+   八段解析          基础知识图谱         画像+学习节点        答疑 / 代码辅助
+                                                      task_qa（已弃用主路径）

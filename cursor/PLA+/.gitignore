@@ -1,0 +1,11 @@
+backend/.env
+backend/.venv/
+backend/pla.db
+backend/data/frameworks/*
+!backend/data/frameworks/.gitkeep
+backend/data/knowledge_graph/*
+!backend/data/knowledge_graph/.gitkeep
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.pyc

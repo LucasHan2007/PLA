@@ -1,11 +1,19 @@
 import httpx
 
 from app.config import settings
-from app.schemas.ai_output import AIStructuredOutput
-from app.services.post_processor import parse_structured_output, process_llm_response
+from app.schemas.ai_output import AIStructuredOutput, ProjectParseDocument
+from app.services.llm_errors import format_llm_http_error
+from app.services.post_processor import (
+    extract_json_from_text,
+    parse_project_parse_document,
+    parse_structured_output,
+    process_llm_response,
+)
 from app.services.prompt_builder import (
     build_demo_output,
     build_messages,
+    build_project_parse_demo,
+    build_project_parse_messages,
     build_task_qa_demo_answer,
     build_task_qa_messages,
 )
@@ -56,6 +64,20 @@ class LLMService:
         raw_text = await self._call_api(messages)
         return process_llm_response(raw_text)
 
+    async def parse_project(self, project_name: str, project_hint: str = "") -> ProjectParseDocument:
+        name = project_name.strip()
+        if not name:
+            raise ValueError("项目名称不能为空")
+
+        if not settings.llm_configured:
+            demo = build_project_parse_demo(name, project_hint)
+            return parse_project_parse_document(demo, name)
+
+        messages = build_project_parse_messages(name, project_hint)
+        raw_text = await self._call_api_plain(messages, temperature=0.4)
+        parsed = extract_json_from_text(raw_text)
+        return parse_project_parse_document(parsed, name)
+
     async def task_qa(
         self,
         question: str,
@@ -68,6 +90,7 @@ class LLMService:
         plan_content: str,
         task_title: str,
         task_summary: str,
+        framework_context: str = "",
     ) -> str:
         if not settings.llm_configured:
             return build_task_qa_demo_answer(
@@ -87,10 +110,13 @@ class LLMService:
             plan_content=plan_content,
             task_title=task_title,
             task_summary=task_summary,
+            framework_context=framework_context,
         )
         return await self._call_api_plain(messages)
 
-    async def _call_api_plain(self, messages: list[dict[str, str]]) -> str:
+    async def _call_api_plain(
+        self, messages: list[dict[str, str]], *, temperature: float = 0.5
+    ) -> str:
         url = f"{settings.llm_api_base.rstrip('/')}/chat/completions"
         headers = {
             "Authorization": f"Bearer {settings.llm_api_key}",
@@ -99,11 +125,14 @@ class LLMService:
         payload = {
             "model": settings.llm_model,
             "messages": messages,
-            "temperature": 0.5,
+            "temperature": temperature,
         }
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            try:
+                resp = await client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise RuntimeError(format_llm_http_error(exc)) from exc
             data = resp.json()
             return (data["choices"][0]["message"]["content"] or "").strip()
 
@@ -120,8 +149,11 @@ class LLMService:
             "response_format": {"type": "json_object"},
         }
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
+            try:
+                resp = await client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise RuntimeError(format_llm_http_error(exc)) from exc
             data = resp.json()
             return data["choices"][0]["message"]["content"]
 

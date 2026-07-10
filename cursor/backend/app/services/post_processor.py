@@ -10,6 +10,8 @@ from app.schemas.ai_output import (
     FollowUpQuestion,
     LogicPlanItem,
     OperationSubStep,
+    ProjectParseDocument,
+    ProjectParseSection,
     TermDefinition,
 )
 
@@ -219,3 +221,53 @@ def process_llm_response(raw_text: str) -> tuple[AIStructuredOutput, str | None]
         output = parse_structured_output(parsed)
         return output, None
     return parse_structured_output(None, raw_text), raw_text
+
+
+PROJECT_PARSE_SECTION_ORDER = [
+    "project_goal",
+    "problem_definition",
+    "data_flow",
+    "task_decomposition",
+    "knowledge_skills",
+    "implementation_plan",
+    "run_verify_debug",
+]
+
+PROJECT_PARSE_SECTION_TITLES = {
+    "project_goal": "项目目标",
+    "problem_definition": "问题定义",
+    "data_flow": "数据输入、输出流与数据模型及约束",
+    "task_decomposition": "任务分解",
+    "knowledge_skills": "所涉及的知识与技能",
+    "implementation_plan": "实现方案",
+    "run_verify_debug": "代码的运行、验证与调试",
+}
+
+
+def parse_project_parse_document(raw: dict[str, Any] | None, project_name: str) -> ProjectParseDocument:
+    if not raw:
+        raw = {}
+    name = str(raw.get("project_name") or project_name).strip() or project_name.strip()
+    summary = str(raw.get("summary") or "").strip()
+
+    by_id: dict[str, dict[str, Any]] = {}
+    for item in raw.get("sections") or []:
+        if isinstance(item, dict) and item.get("id"):
+            by_id[str(item["id"])] = item
+
+    sections: list[ProjectParseSection] = []
+    for sid in PROJECT_PARSE_SECTION_ORDER:
+        item = by_id.get(sid, {})
+        sections.append(
+            ProjectParseSection(
+                id=sid,
+                title=str(item.get("title") or PROJECT_PARSE_SECTION_TITLES[sid]),
+                content=str(item.get("content") or "").strip() or "（待补充）",
+            )
+        )
+
+    if not summary:
+        goal = sections[0].content[:80] if sections else name
+        summary = f"{name}：{goal}{'…' if len(goal) >= 80 else ''}"
+
+    return ProjectParseDocument(project_name=name, summary=summary, sections=sections)

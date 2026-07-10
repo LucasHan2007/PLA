@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0f1419;
+  color: #e2e8f0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2d3a4f;
+  border-radius: 3px;
+}
+
+.panel-header {
+  @apply px-4 py-2.5 border-b border-pla-border bg-pla-panel/80 font-medium text-sm text-pla-text flex items-center gap-2 shrink-0;
+}
+
+.panel-body {
+  @apply flex-1 overflow-auto p-3;
+}
+
+.badge {
+  @apply text-xs px-2 py-0.5 rounded-full bg-pla-accent/20 text-pla-accent;
+}
