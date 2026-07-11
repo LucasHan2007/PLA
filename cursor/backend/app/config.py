@@ -26,5 +26,9 @@ class Settings(BaseSettings):
     def llm_configured(self) -> bool:
         return bool(self.llm_api_key and self.llm_api_key != "your-api-key-here")
 
+    @property
+    def data_dir(self) -> Path:
+        return _BACKEND_DIR / "data"
+
 
 settings = Settings()

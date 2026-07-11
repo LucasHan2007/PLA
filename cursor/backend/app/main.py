@@ -11,13 +11,23 @@ from app.database import init_db
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    for name in (
+        "frameworks",
+        "knowledge_graph",
+        "profiling_sessions",
+        "user_profiles",
+        "learning_nodes",
+        "implementation",
+    ):
+        (settings.data_dir / name).mkdir(exist_ok=True)
     yield
 
 
 app = FastAPI(
     title="PLA - Programming Learning Assistant",
-    description="AI 编程学习助手：苏格拉底式提问 → 逻辑方案 → 执行步骤 → 模块代码",
-    version="0.1.0",
+    description="项目制学习编排：项目解析 → 用户画像 → 教学策略 → 实现与知识图谱",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
