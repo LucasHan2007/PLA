@@ -369,6 +369,53 @@ def run_tests(driver):
     return results
 
 
+def test_codegen_node_model():
+    """单元测试：Node 数据类包含代码生成节点所需字段。"""
+    sys.path.insert(0, str(ROOT / "backend"))
+    from app_server import Node
+    node = Node()
+    assert hasattr(node, "codegen_plan")
+    assert hasattr(node, "codegen_nodes")
+    assert node.codegen_plan == ""
+    assert node.codegen_nodes == []
+    return True
+
+
+def test_codegen_update_node():
+    """单元测试：手动更新代码生成节点字段。"""
+    sys.path.insert(0, str(ROOT / "backend"))
+    from app_server import _codegen_update_node
+    workspace = {
+        "current_node_id": "n1",
+        "nodes": {
+            "n1": {
+                "codegen_nodes": [
+                    {"id": "data_loader", "title": "数据读取", "status": "planned", "pseudocode": ""}
+                ]
+            }
+        }
+    }
+    _codegen_update_node(workspace, "data_loader", {"pseudocode": "读取 CSV", "status": "pseudo"})
+    node = workspace["nodes"]["n1"]["codegen_nodes"][0]
+    assert node["pseudocode"] == "读取 CSV"
+    assert node["status"] == "pseudo"
+    return True
+
+
+def test_codegen_add_or_update_code_block():
+    """单元测试：节点代码块可追加或更新。"""
+    sys.path.insert(0, str(ROOT / "backend"))
+    from app_server import _add_or_update_code_block
+    node = {"code_blocks": []}
+    _add_or_update_code_block(node, "data_loader.py", "数据加载", "python", "class DataLoader: ...")
+    assert len(node["code_blocks"]) == 1
+    assert node["code_blocks"][0]["code"] == "class DataLoader: ..."
+    _add_or_update_code_block(node, "data_loader.py", "数据加载", "python", "class DataLoader: pass")
+    assert len(node["code_blocks"]) == 1
+    assert node["code_blocks"][0]["code"] == "class DataLoader: pass"
+    return True
+
+
 def main():
     proc = None
     driver = None
@@ -385,10 +432,16 @@ def main():
         markdown_ok = test_markdown_extraction()
         weight_ok = test_knowledge_weight_update()
         plan_ok = test_project_plan_per_node()
+        codegen_model_ok = test_codegen_node_model()
+        codegen_update_ok = test_codegen_update_node()
+        codegen_block_ok = test_codegen_add_or_update_code_block()
         results = run_tests(driver)
         results.insert(0, ("project_plan_per_node", plan_ok, {}))
         results.insert(1, ("knowledge_weight_update", weight_ok, {}))
         results.insert(2, ("markdown_extract_to_code_blocks", markdown_ok, {}))
+        results.insert(3, ("codegen_node_model", codegen_model_ok, {}))
+        results.insert(4, ("codegen_update_node", codegen_update_ok, {}))
+        results.insert(5, ("codegen_add_or_update_block", codegen_block_ok, {}))
         output = {
             "all_passed": all(ok for _, ok, _ in results),
             "tests": [{"name": n, "passed": ok, "detail": d} for n, ok, d in results]

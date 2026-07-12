@@ -1097,6 +1097,7 @@ function updateProjectPanel() {
   }
   if (App.lkgManaging) renderLkgEditList();
   renderRecommendations();
+  renderCodegenNodes();
 }
 
 function togglePlanEdit(show) {
@@ -1212,6 +1213,134 @@ function renderRecommendations() {
       <div class="recommend-item-action">💬 点击开始对话</div>
     </div>`;
   }).join("");
+}
+
+// ---------------------------------------------------------------------------
+// 代码生成节点工作流（Code Generation Nodes）
+// ---------------------------------------------------------------------------
+
+let codegenSelectedNodeId = null;
+
+function currentCodegenNodes() {
+  return currentNode()?.codegen_nodes || [];
+}
+
+function renderCodegenNodes() {
+  const nodes = currentCodegenNodes();
+  const progressEl = $("#codegen-progress");
+  const listEl = $("#codegen-node-list");
+  const mainWrap = $("#codegen-main-wrap");
+  if (!progressEl || !listEl) return;
+  if (!nodes.length) {
+    progressEl.innerHTML = `<span class="muted">暂无节点，点击“生成规划”开始</span>`;
+    listEl.innerHTML = "";
+    mainWrap?.classList.add("hidden");
+    return;
+  }
+  const coded = nodes.filter((n) => n.status === "coded").length;
+  const pct = Math.round((coded / nodes.length) * 100);
+  progressEl.innerHTML = `
+    <div class="codegen-progress-bar-wrap">
+      <div class="codegen-progress-bar" style="width:${pct}%"></div>
+    </div>
+    <div class="codegen-progress-text">${coded}/${nodes.length} 节点已完成 (${pct}%)</div>
+  `;
+  listEl.innerHTML = nodes.map((n, idx) => {
+    const statusClass = n.status === "coded" ? "coded" : (n.status === "pseudo" ? "pseudo" : "planned");
+    const statusText = n.status === "coded" ? "✅ 已生成代码" : (n.status === "pseudo" ? "📝 已细化" : "📋 已规划");
+    return `<div class="codegen-node-item ${statusClass}" data-id="${escapeHtml(n.id)}">
+      <div class="codegen-node-header">
+        <span class="codegen-node-idx">${idx + 1}</span>
+        <span class="codegen-node-title">${escapeHtml(n.title)}</span>
+        <span class="codegen-node-status">${statusText}</span>
+      </div>
+      <div class="codegen-node-desc">${escapeHtml(n.description || "")}</div>
+    </div>`;
+  }).join("");
+  if (coded === nodes.length) {
+    mainWrap?.classList.remove("hidden");
+  } else {
+    mainWrap?.classList.add("hidden");
+  }
+}
+
+function openCodegenModal(nodeId) {
+  const nodes = currentCodegenNodes();
+  const node = nodes.find((n) => n.id === nodeId);
+  if (!node) return;
+  codegenSelectedNodeId = nodeId;
+  $("#codegen-modal-title").textContent = node.title;
+  $("#codegen-modal-knowledge").innerHTML = (node.knowledge || []).map((k) => `<span class="codegen-tag">${escapeHtml(k)}</span>`).join("");
+  $("#codegen-modal-pseudo").value = node.pseudocode || "";
+  $("#codegen-node-modal").classList.remove("hidden");
+}
+
+function closeCodegenModal() {
+  codegenSelectedNodeId = null;
+  $("#codegen-node-modal").classList.add("hidden");
+}
+
+async function onCodegenPlanClick() {
+  const prompt = window.prompt("请输入项目需求（例如：用 PyTorch 训练一个 MNIST 手写数字识别模型）：");
+  if (!prompt?.trim()) return;
+  try {
+    const data = await api("/api/codegen/plan", { prompt: prompt.trim(), workspace: App.workspace });
+    App.workspace = data.workspace;
+    updateProjectPanel();
+    updateChat();
+    loadCurrentNodeIntoEditor();
+  } catch (err) {
+    alert("生成规划失败：" + err.message);
+  }
+}
+
+async function onCodegenSavePseudo() {
+  if (!codegenSelectedNodeId) return;
+  const pseudo = $("#codegen-modal-pseudo").value;
+  try {
+    const data = await api("/api/codegen/update-node", { node_id: codegenSelectedNodeId, updates: { pseudocode: pseudo, status: "pseudo" }, workspace: App.workspace });
+    App.workspace = data.workspace;
+    closeCodegenModal();
+    renderCodegenNodes();
+  } catch (err) {
+    alert("保存失败：" + err.message);
+  }
+}
+
+async function onCodegenPseudoAI() {
+  if (!codegenSelectedNodeId) return;
+  try {
+    const data = await api("/api/codegen/pseudo", { node_id: codegenSelectedNodeId, workspace: App.workspace });
+    App.workspace = data.workspace;
+    openCodegenModal(codegenSelectedNodeId);
+    renderCodegenNodes();
+  } catch (err) {
+    alert("细化失败：" + err.message);
+  }
+}
+
+async function onCodegenImplement() {
+  if (!codegenSelectedNodeId) return;
+  try {
+    const data = await api("/api/codegen/implement", { node_id: codegenSelectedNodeId, workspace: App.workspace });
+    App.workspace = data.workspace;
+    closeCodegenModal();
+    renderCodegenNodes();
+    loadCurrentNodeIntoEditor();
+  } catch (err) {
+    alert("生成代码失败：" + err.message);
+  }
+}
+
+async function onCodegenMain() {
+  try {
+    const data = await api("/api/codegen/main", { workspace: App.workspace });
+    App.workspace = data.workspace;
+    renderCodegenNodes();
+    loadCurrentNodeIntoEditor();
+  } catch (err) {
+    alert("生成主文件失败：" + err.message);
+  }
 }
 
 function startChatAboutKnowledge(name, description) {
@@ -2538,6 +2667,23 @@ function bindEvents() {
   $("#btn-cancel-edit-plan").addEventListener("click", () => togglePlanEdit(false));
   $("#btn-clear-plan").addEventListener("click", clearPlan);
   $("#btn-refresh-recommend").addEventListener("click", fetchRecommendations);
+
+  // 代码生成节点
+  $("#btn-codegen-plan")?.addEventListener("click", onCodegenPlanClick);
+  $("#codegen-node-list")?.addEventListener("click", (e) => {
+    const item = e.target.closest(".codegen-node-item");
+    if (item?.dataset.id) openCodegenModal(item.dataset.id);
+  });
+  $("#btn-codegen-main")?.addEventListener("click", onCodegenMain);
+  $("#codegen-modal-close")?.addEventListener("click", closeCodegenModal);
+  $("#codegen-modal-backdrop")?.addEventListener("click", closeCodegenModal);
+  $("#btn-codegen-save-pseudo")?.addEventListener("click", onCodegenSavePseudo);
+  $("#btn-codegen-pseudo-ai")?.addEventListener("click", onCodegenPseudoAI);
+  $("#btn-codegen-implement")?.addEventListener("click", onCodegenImplement);
+  $("#codegen-node-modal")?.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeCodegenModal();
+  });
+
   $("#recommend-list")?.addEventListener("click", async (e) => {
     const item = e.target.closest(".recommend-item");
     if (!item) return;

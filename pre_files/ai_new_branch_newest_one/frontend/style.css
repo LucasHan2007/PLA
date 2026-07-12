@@ -1441,3 +1441,202 @@ textarea { resize: vertical; }
     border-top: 1px solid var(--line);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   代码生成节点（Code Generation Nodes）
+   --------------------------------------------------------------------------- */
+
+.codegen-progress {
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.codegen-progress-bar-wrap {
+  height: 8px;
+  background: var(--surface-soft);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+}
+
+.codegen-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  transition: width 0.3s ease;
+}
+
+.codegen-progress-text {
+  color: var(--muted);
+  text-align: right;
+}
+
+.codegen-node-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.codegen-node-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.codegen-node-item:hover {
+  background: var(--surface-soft);
+  border-color: var(--primary);
+}
+
+.codegen-node-item.coded {
+  border-left: 4px solid #22c55e;
+}
+
+.codegen-node-item.pseudo {
+  border-left: 4px solid #f59e0b;
+}
+
+.codegen-node-item.planned {
+  border-left: 4px solid #3b82f6;
+}
+
+.codegen-node-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.codegen-node-idx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.codegen-node-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.codegen-node-status {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.codegen-node-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.codegen-main-wrap {
+  padding: 0 12px 12px;
+}
+
+.codegen-main-wrap button {
+  width: 100%;
+}
+
+/* 节点详情弹窗 */
+.codegen-node-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.codegen-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.codegen-modal-card {
+  position: relative;
+  width: 560px;
+  max-width: 90vw;
+  max-height: 80vh;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.codegen-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.codegen-modal-header h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.codegen-modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+
+.codegen-modal-body label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 14px 0 6px;
+}
+
+.codegen-modal-body label:first-child {
+  margin-top: 0;
+}
+
+.codegen-modal-body textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.codegen-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.codegen-tag {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.codegen-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.codegen-modal-actions button {
+  flex: 1;
+  min-width: 110px;
+}

@@ -118,6 +118,41 @@
           <div class="recommend-list" id="recommend-list">
             <span class="muted">点击刷新获取推荐</span>
           </div>
+
+          <!-- 代码生成节点 -->
+          <div class="panel-heading">
+            <h3>代码生成节点</h3>
+            <button type="button" id="btn-codegen-plan">生成规划</button>
+          </div>
+          <div id="codegen-progress" class="codegen-progress">
+            <span class="muted">暂无节点</span>
+          </div>
+          <div id="codegen-node-list" class="codegen-node-list"></div>
+          <div id="codegen-main-wrap" class="codegen-main-wrap hidden">
+            <button type="button" id="btn-codegen-main" class="primary">生成主文件</button>
+          </div>
+
+          <!-- 节点详情弹窗 -->
+          <div id="codegen-node-modal" class="codegen-node-modal hidden">
+            <div class="codegen-modal-backdrop" id="codegen-modal-backdrop"></div>
+            <div class="codegen-modal-card">
+              <div class="codegen-modal-header">
+                <h4 id="codegen-modal-title">节点详情</h4>
+                <button type="button" id="codegen-modal-close" class="modal-close">×</button>
+              </div>
+              <div class="codegen-modal-body">
+                <label>知识点</label>
+                <div id="codegen-modal-knowledge" class="codegen-tags"></div>
+                <label>伪代码 / 实现思路</label>
+                <textarea id="codegen-modal-pseudo" rows="6"></textarea>
+                <div class="codegen-modal-actions">
+                  <button type="button" id="btn-codegen-save-pseudo">保存伪代码</button>
+                  <button type="button" id="btn-codegen-pseudo-ai">AI 细化伪代码</button>
+                  <button type="button" id="btn-codegen-implement" class="primary">生成代码</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section id="panel-settings" class="side-panel">

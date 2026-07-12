@@ -69,6 +69,8 @@ class Node:
     code_ref: str | None = None
     code_blocks: list[dict] = field(default_factory=list)
     project_plan: str = ""
+    codegen_plan: str = ""
+    codegen_nodes: list[dict] = field(default_factory=list)
 
 
 def json_response(handler, payload, status=200, extra_headers=None):
@@ -212,6 +214,8 @@ def normalize_workspace(payload):
             code_ref=item.get("code_ref"),
             code_blocks=item.get("code_blocks") or [],
             project_plan=item.get("project_plan") or "",
+            codegen_plan=item.get("codegen_plan") or "",
+            codegen_nodes=item.get("codegen_nodes") or [],
         )
         if node.parent_id is None:
             root_id = node.id
@@ -1220,6 +1224,194 @@ def apply_ai_reply_to_node(node, raw):
     return reply, highlights, knowledge_nodes
 
 
+# ---------------------------------------------------------------------------
+# 代码生成节点工作流（Code Generation Nodes）
+# ---------------------------------------------------------------------------
+
+def _codegen_ai_call(user, workspace, prompt_key, user_content, max_tokens=8000):
+    """为代码生成节点工作流发起一次独立的 AI 调用。"""
+    client = get_client(user)
+    if client is None:
+        raise RuntimeError("API 未连接，请在登录或注册时配置 API Key。")
+    model = workspace.get("selected_model") or PROVIDER_MODELS.get(user.get("api_provider"), ["deepseek-v4-flash"])[0]
+    messages = [
+        {"role": "system", "content": PROMPTS[prompt_key]},
+        {"role": "user", "content": user_content},
+    ]
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.5,
+            max_tokens=max_tokens,
+        )
+    except Exception as exc:
+        raise RuntimeError(f"AI 调用失败: {exc}")
+    return response.choices[0].message.content
+
+
+def _add_or_update_code_block(node, file, description, lang, code):
+    """把节点代码追加或更新到当前对话节点的 code_blocks 中。"""
+    blocks = node.setdefault("code_blocks", [])
+    for b in blocks:
+        if b.get("file") == file:
+            b["description"] = description
+            b["lang"] = lang
+            b["code"] = code
+            return
+    blocks.append({"file": file, "description": description, "lang": lang, "code": code})
+
+
+def _codegen_plan(user, workspace, prompt):
+    """根据用户需求生成项目规划与节点列表。"""
+    node = workspace["nodes"][workspace["current_node_id"]]
+    lang = workspace.get("editor_language", "python")
+    ext = EDITOR_LANGUAGES.get(lang, {}).get("ext", "py")
+    ctx = graph_context(workspace)
+    user_content = f"项目需求：{prompt}\n编程语言：{lang}\n文件扩展名：{ext}\n"
+    if ctx:
+        user_content += f"\n相关知识点：\n{ctx}\n"
+    raw = _codegen_ai_call(user, workspace, "代码生成节点规划", user_content, max_tokens=4000)
+    data, reply, highlights, knowledge_nodes = parse_ai_reply(raw)
+    plan = data.get("project_markdown") or ""
+    nodes = data.get("codegen_nodes") or []
+    for n in nodes:
+        n.setdefault("status", "planned")
+        n.setdefault("knowledge", [])
+        n.setdefault("pseudocode", "")
+        n.setdefault("code_file", "")
+        n.setdefault("code", "")
+        n.setdefault("description", "")
+        # 若 AI 没给 id，用 title 的 snake_case 兜底
+        if not n.get("id"):
+            n["id"] = re.sub(r"[^\w]+", "_", n.get("title", "node")).strip("_").lower() or str(uuid.uuid4())[:8]
+    node["codegen_plan"] = plan
+    node["codegen_nodes"] = nodes
+    node["messages"].append({"role": "assistant", "content": reply or "项目规划已生成。"})
+    # 同步把规划也写入 project_plan，方便现有 Project 面板查看
+    if plan:
+        node["project_plan"] = plan
+    return workspace
+
+
+def _codegen_implement(user, workspace, node_id):
+    """为指定节点生成正式代码文件。"""
+    node = workspace["nodes"][workspace["current_node_id"]]
+    target = next((n for n in node.get("codegen_nodes", []) if n.get("id") == node_id), None)
+    if target is None:
+        raise ValueError("节点不存在")
+    lang = workspace.get("editor_language", "python")
+    ext = EDITOR_LANGUAGES.get(lang, {}).get("ext", "py")
+    plan = node.get("codegen_plan", "")
+    user_content = (
+        f"项目规划：\n{plan}\n\n"
+        f"当前节点 ID：{target.get('id')}\n"
+        f"当前节点标题：{target.get('title')}\n"
+        f"职责：{target.get('description')}\n"
+        f"需要掌握的知识：{', '.join(target.get('knowledge', []))}\n"
+        f"伪代码：\n{target.get('pseudocode')}\n"
+        f"编程语言：{lang}\n文件扩展名：{ext}\n"
+    )
+    raw = _codegen_ai_call(user, workspace, "代码生成节点实现", user_content, max_tokens=8000)
+    data, reply, highlights, knowledge_nodes = parse_ai_reply(raw)
+    blocks = data.get("code_blocks") or []
+    if blocks:
+        block = blocks[0]
+        file_name = str(block.get("file") or f"{target.get('id')}.{ext}").strip()
+        if not file_name:
+            file_name = f"{target.get('id')}.{ext}"
+        _add_or_update_code_block(
+            node,
+            file_name,
+            str(block.get("description") or target.get("title") or "").strip(),
+            str(block.get("lang") or lang).strip(),
+            str(block.get("code") or ""),
+        )
+        target["code_file"] = file_name
+        target["code"] = block.get("code", "")
+    target["status"] = "coded"
+    node["messages"].append({"role": "assistant", "content": reply or f"已生成 {target.get('title')} 的代码。"})
+    return workspace
+
+
+def _codegen_main(user, workspace):
+    """根据已实现的节点生成主文件。"""
+    node = workspace["nodes"][workspace["current_node_id"]]
+    lang = workspace.get("editor_language", "python")
+    ext = EDITOR_LANGUAGES.get(lang, {}).get("ext", "py")
+    plan = node.get("codegen_plan", "")
+    coded_nodes = [n for n in node.get("codegen_nodes", []) if n.get("status") == "coded"]
+    if not coded_nodes:
+        raise ValueError("还没有任何节点生成代码，无法生成主文件")
+    summary_lines = []
+    for n in coded_nodes:
+        summary_lines.append(f"- {n.get('title')} (文件：{n.get('code_file')}, id：{n.get('id')})")
+    user_content = (
+        f"项目规划：\n{plan}\n\n"
+        f"已实现的节点：\n" + "\n".join(summary_lines) + f"\n\n"
+        f"编程语言：{lang}\n文件扩展名：{ext}\n"
+    )
+    raw = _codegen_ai_call(user, workspace, "代码生成主文件", user_content, max_tokens=8000)
+    data, reply, highlights, knowledge_nodes = parse_ai_reply(raw)
+    blocks = data.get("code_blocks") or []
+    if blocks:
+        block = blocks[0]
+        file_name = str(block.get("file") or f"main.{ext}").strip()
+        if not file_name:
+            file_name = f"main.{ext}"
+        _add_or_update_code_block(
+            node,
+            file_name,
+            str(block.get("description") or "项目入口主文件").strip(),
+            str(block.get("lang") or lang).strip(),
+            str(block.get("code") or ""),
+        )
+    node["messages"].append({"role": "assistant", "content": reply or "主文件已生成。"})
+    return workspace
+
+
+def _codegen_pseudo(user, workspace, node_id):
+    """为指定节点重新生成/细化伪代码和知识点。"""
+    node = workspace["nodes"][workspace["current_node_id"]]
+    target = next((n for n in node.get("codegen_nodes", []) if n.get("id") == node_id), None)
+    if target is None:
+        raise ValueError("节点不存在")
+    lang = workspace.get("editor_language", "python")
+    plan = node.get("codegen_plan", "")
+    user_content = (
+        f"项目规划：\n{plan}\n\n"
+        f"当前节点：{target.get('title')}\n"
+        f"当前职责：{target.get('description')}\n"
+        f"请为该节点重新生成知识点和伪代码，要求更详细、更适合初学者理解。\n"
+        f"编程语言：{lang}\n"
+    )
+    raw = _codegen_ai_call(user, workspace, "代码生成节点规划", user_content, max_tokens=4000)
+    data, reply, highlights, knowledge_nodes = parse_ai_reply(raw)
+    nodes = data.get("codegen_nodes") or []
+    if nodes:
+        src = nodes[0]
+        target["knowledge"] = src.get("knowledge") or target.get("knowledge", [])
+        target["pseudocode"] = src.get("pseudocode") or target.get("pseudocode", "")
+        target["description"] = src.get("description") or target.get("description", "")
+        if target.get("status") == "planned":
+            target["status"] = "planned"  # 保持 planned，让用户再触发生成代码
+    node["messages"].append({"role": "assistant", "content": reply or f"已更新 {target.get('title')} 的伪代码。"})
+    return workspace
+
+
+def _codegen_update_node(workspace, node_id, updates):
+    """用户手动编辑节点内容（伪代码、知识点、状态等）。"""
+    node = workspace["nodes"][workspace["current_node_id"]]
+    target = next((n for n in node.get("codegen_nodes", []) if n.get("id") == node_id), None)
+    if target is None:
+        raise ValueError("节点不存在")
+    allowed = {"title", "description", "knowledge", "pseudocode", "code_file", "code", "status"}
+    for key, value in updates.items():
+        if key in allowed:
+            target[key] = value
+    return workspace
+
+
 def node_depth(nodes, node_id):
     depth = 0
     while node_id:
@@ -1562,6 +1754,43 @@ class AppHandler(SimpleHTTPRequestHandler):
                     self.send_json({"ok": True, "graph": graph})
                 else:
                     self.send_json({"error": "未知操作"}, HTTPStatus.BAD_REQUEST)
+            elif path == "/api/codegen/plan":
+                prompt = data.get("prompt", "")
+                if not prompt.strip():
+                    self.send_json({"error": "需求不能为空"}, HTTPStatus.BAD_REQUEST)
+                    return
+                _codegen_plan(user, workspace, prompt.strip())
+                save_workspace(user, workspace)
+                self.send_json({"ok": True, "workspace": workspace})
+            elif path == "/api/codegen/pseudo":
+                node_id = data.get("node_id")
+                if not node_id:
+                    self.send_json({"error": "node_id 不能为空"}, HTTPStatus.BAD_REQUEST)
+                    return
+                _codegen_pseudo(user, workspace, node_id)
+                save_workspace(user, workspace)
+                self.send_json({"ok": True, "workspace": workspace})
+            elif path == "/api/codegen/implement":
+                node_id = data.get("node_id")
+                if not node_id:
+                    self.send_json({"error": "node_id 不能为空"}, HTTPStatus.BAD_REQUEST)
+                    return
+                _codegen_implement(user, workspace, node_id)
+                save_workspace(user, workspace)
+                self.send_json({"ok": True, "workspace": workspace})
+            elif path == "/api/codegen/main":
+                _codegen_main(user, workspace)
+                save_workspace(user, workspace)
+                self.send_json({"ok": True, "workspace": workspace})
+            elif path == "/api/codegen/update-node":
+                node_id = data.get("node_id")
+                updates = data.get("updates") or {}
+                if not node_id:
+                    self.send_json({"error": "node_id 不能为空"}, HTTPStatus.BAD_REQUEST)
+                    return
+                _codegen_update_node(workspace, node_id, updates)
+                save_workspace(user, workspace)
+                self.send_json({"ok": True, "workspace": workspace})
             else:
                 self.send_json({"error": "接口不存在"}, HTTPStatus.NOT_FOUND)
         except json.JSONDecodeError:
