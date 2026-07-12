@@ -1,0 +1,23 @@
+ai_app_test.py
+DeepSeek.py
+fiction.py
+st-run.bat
+st.run.bat
+wenjian.py
+.vscode
+__pycache__/
+backend/__pycache__/
+backend/auth/__pycache__/
+data/app.db
+data/*.db
+*.log
+.playwright-mcp/
+wb-nav.json
+venv/
+
+# 演示截图
+demo_*.png
+
+# 运行时状态
+data/admin_workspace.json
+state/project_graph.json
