@@ -19,6 +19,7 @@ async def lifespan(_app: FastAPI):
         "user_profiles",
         "learning_nodes",
         "implementation",
+        "code_blueprint",
     ):
         (settings.data_dir / name).mkdir(exist_ok=True)
     yield

@@ -1,12 +1,12 @@
 {
   "session_id": "template-mnist",
   "project_name": "MNIST 手写数字识别",
-  "summary": "本项目以Python和Scikit-learn为基础，通过数据预处理、KNN与MLP模型训练及评估，构建完整的图像多分类机器学习流水线，并延伸至降维与调优等进阶实践。",
+  "summary": "本项目以Python和Scikit-learn为基础，通过数据加载、预处理、模型训练(KNN/MLP)、评估与持久化，构建完整的MNIST手写数字识别流水线。",
   "nodes": [
     {
       "id": "python_basics",
       "label": "Python基础语法",
-      "description": "掌握Python基本语法、数据结构与脚本编写能力",
+      "description": "Python基本语法、控制流与函数定义",
       "category": "skill",
       "related_sections": [
         "knowledge_skills"
@@ -14,9 +14,9 @@
       "importance": 1
     },
     {
-      "id": "numpy_array_ops",
+      "id": "numpy_operations",
       "label": "NumPy数组操作",
-      "description": "使用NumPy进行矩阵reshape、归一化及数值计算",
+      "description": "多维数组切片、形状变换与数学运算",
       "category": "skill",
       "related_sections": [
         "knowledge_skills",
@@ -25,20 +25,9 @@
       "importance": 1
     },
     {
-      "id": "matplotlib_plotting",
-      "label": "Matplotlib基础绘图",
-      "description": "使用Matplotlib进行图像显示与数据可视化",
-      "category": "tool",
-      "related_sections": [
-        "knowledge_skills",
-        "task_decomposition"
-      ],
-      "importance": 1
-    },
-    {
-      "id": "scikit_learn_basics",
-      "label": "Scikit-learn基础",
-      "description": "熟悉sklearn的API设计规范、数据加载与模型调用范式",
+      "id": "scikit_learn_framework",
+      "label": "Scikit-learn框架",
+      "description": "机器学习核心算法库与工具集调用",
       "category": "tool",
       "related_sections": [
         "knowledge_skills",
@@ -47,10 +36,21 @@
       "importance": 1
     },
     {
-      "id": "data_normalization",
-      "label": "数据归一化",
-      "description": "将像素值缩放至0-1区间，消除特征尺度差异对模型的影响",
+      "id": "data_loading",
+      "label": "数据集加载",
+      "description": "使用fetch_openml获取标准MNIST数据集",
       "category": "skill",
+      "related_sections": [
+        "data_flow",
+        "task_decomposition"
+      ],
+      "importance": 1
+    },
+    {
+      "id": "data_preprocessing",
+      "label": "数据预处理",
+      "description": "像素值归一化缩放与标签数据类型转换",
+      "category": "practice",
       "related_sections": [
         "data_flow",
         "run_verify_debug"
@@ -58,9 +58,9 @@
       "importance": 1
     },
     {
-      "id": "train_test_split",
+      "id": "dataset_splitting",
       "label": "数据集划分",
-      "description": "将数据集合理划分为训练集与测试集以评估泛化能力",
+      "description": "使用train_test_split按比例划分训练集与测试集",
       "category": "skill",
       "related_sections": [
         "data_flow",
@@ -70,208 +70,169 @@
     },
     {
       "id": "knn_algorithm",
-      "label": "KNN算法原理与实现",
-      "description": "理解K近邻算法的距离度量与投票机制，并使用sklearn实现",
+      "label": "KNN分类算法",
+      "description": "K近邻算法原理与KNeighborsClassifier模型训练",
       "category": "concept",
       "related_sections": [
-        "knowledge_skills",
-        "task_decomposition"
-      ],
-      "importance": 2
-    },
-    {
-      "id": "mlp_algorithm",
-      "label": "多层感知机(MLP)",
-      "description": "理解简单前馈神经网络结构，使用MLPClassifier进行多分类",
-      "category": "concept",
-      "related_sections": [
-        "knowledge_skills",
-        "task_decomposition"
-      ],
-      "importance": 2
-    },
-    {
-      "id": "model_evaluation_metrics",
-      "label": "模型评估指标",
-      "description": "计算并理解Accuracy、Precision、Recall、F1-score等分类指标",
-      "category": "concept",
-      "related_sections": [
-        "data_flow",
+        "problem_definition",
         "knowledge_skills"
       ],
       "importance": 1
     },
     {
-      "id": "confusion_matrix_visualization",
-      "label": "混淆矩阵可视化",
-      "description": "生成并绘制混淆矩阵，直观分析模型的误分类情况",
+      "id": "mlp_algorithm",
+      "label": "MLP神经网络",
+      "description": "多层感知机原理与MLPClassifier模型构建及收敛调优",
+      "category": "concept",
+      "related_sections": [
+        "problem_definition",
+        "knowledge_skills"
+      ],
+      "importance": 1
+    },
+    {
+      "id": "pca_reduction",
+      "label": "PCA降维",
+      "description": "主成分分析降维以加速KNN距离计算",
       "category": "skill",
       "related_sections": [
-        "task_decomposition",
-        "implementation_plan"
+        "data_flow",
+        "iterative_optimization"
       ],
       "importance": 2
     },
     {
-      "id": "hyperparameter_tuning",
-      "label": "超参数调优",
-      "description": "调整KNN的K值或MLP的隐藏层结构，寻找最优模型配置",
-      "category": "practice",
+      "id": "model_evaluation",
+      "label": "模型评估",
+      "description": "计算准确率、精确率、召回率及生成分类报告",
+      "category": "skill",
+      "related_sections": [
+        "data_flow",
+        "task_decomposition"
+      ],
+      "importance": 1
+    },
+    {
+      "id": "result_visualization",
+      "label": "结果可视化",
+      "description": "绘制混淆矩阵热力图与预测错误样本图像",
+      "category": "skill",
       "related_sections": [
         "task_decomposition",
-        "iterative_optimization"
+        "knowledge_skills"
       ],
       "importance": 2
     },
     {
-      "id": "pca_dimensionality_reduction",
-      "label": "PCA降维加速",
-      "description": "使用主成分分析降低特征维度，大幅提升KNN推理速度",
+      "id": "model_persistence",
+      "label": "模型持久化",
+      "description": "使用joblib序列化保存模型并编写推理脚本加载",
       "category": "skill",
       "related_sections": [
-        "iterative_optimization",
-        "run_verify_debug"
-      ],
-      "importance": 3
-    },
-    {
-      "id": "data_augmentation",
-      "label": "图像数据增强",
-      "description": "对训练图像进行平移或旋转，提升模型对形变数字的鲁棒性",
-      "category": "practice",
-      "related_sections": [
+        "data_flow",
         "iterative_optimization"
       ],
-      "importance": 3
-    },
-    {
-      "id": "cross_validation",
-      "label": "交叉验证",
-      "description": "使用K折交叉验证更稳定地评估模型性能与参数选择",
-      "category": "practice",
-      "related_sections": [
-        "knowledge_skills",
-        "iterative_optimization"
-      ],
-      "importance": 3
+      "importance": 2
     }
   ],
   "edges": [
     {
       "id": "e1",
       "source": "python_basics",
-      "target": "numpy_array_ops",
+      "target": "numpy_operations",
       "relation": "requires"
     },
     {
       "id": "e2",
       "source": "python_basics",
-      "target": "scikit_learn_basics",
+      "target": "scikit_learn_framework",
       "relation": "requires"
     },
     {
       "id": "e3",
-      "source": "numpy_array_ops",
-      "target": "data_normalization",
+      "source": "numpy_operations",
+      "target": "data_preprocessing",
       "relation": "requires"
     },
     {
       "id": "e4",
-      "source": "scikit_learn_basics",
-      "target": "train_test_split",
+      "source": "scikit_learn_framework",
+      "target": "data_loading",
       "relation": "requires"
     },
     {
       "id": "e5",
-      "source": "scikit_learn_basics",
-      "target": "knn_algorithm",
+      "source": "scikit_learn_framework",
+      "target": "dataset_splitting",
       "relation": "requires"
     },
     {
       "id": "e6",
-      "source": "scikit_learn_basics",
-      "target": "mlp_algorithm",
+      "source": "data_loading",
+      "target": "data_preprocessing",
       "relation": "requires"
     },
     {
       "id": "e7",
-      "source": "data_normalization",
-      "target": "knn_algorithm",
+      "source": "data_preprocessing",
+      "target": "dataset_splitting",
       "relation": "requires"
     },
     {
       "id": "e8",
-      "source": "data_normalization",
-      "target": "mlp_algorithm",
+      "source": "dataset_splitting",
+      "target": "knn_algorithm",
       "relation": "requires"
     },
     {
       "id": "e9",
-      "source": "train_test_split",
-      "target": "model_evaluation_metrics",
+      "source": "dataset_splitting",
+      "target": "mlp_algorithm",
       "relation": "requires"
     },
     {
       "id": "e10",
-      "source": "knn_algorithm",
-      "target": "model_evaluation_metrics",
+      "source": "data_preprocessing",
+      "target": "pca_reduction",
       "relation": "requires"
     },
     {
       "id": "e11",
-      "source": "mlp_algorithm",
-      "target": "model_evaluation_metrics",
-      "relation": "requires"
+      "source": "pca_reduction",
+      "target": "knn_algorithm",
+      "relation": "relates_to"
     },
     {
       "id": "e12",
-      "source": "model_evaluation_metrics",
-      "target": "confusion_matrix_visualization",
+      "source": "knn_algorithm",
+      "target": "model_evaluation",
       "relation": "requires"
     },
     {
       "id": "e13",
-      "source": "matplotlib_plotting",
-      "target": "confusion_matrix_visualization",
+      "source": "mlp_algorithm",
+      "target": "model_evaluation",
       "relation": "requires"
     },
     {
       "id": "e14",
-      "source": "knn_algorithm",
-      "target": "hyperparameter_tuning",
+      "source": "model_evaluation",
+      "target": "result_visualization",
       "relation": "requires"
     },
     {
       "id": "e15",
-      "source": "mlp_algorithm",
-      "target": "hyperparameter_tuning",
+      "source": "knn_algorithm",
+      "target": "model_persistence",
       "relation": "requires"
     },
     {
       "id": "e16",
-      "source": "numpy_array_ops",
-      "target": "pca_dimensionality_reduction",
-      "relation": "requires"
-    },
-    {
-      "id": "e17",
-      "source": "knn_algorithm",
-      "target": "pca_dimensionality_reduction",
-      "relation": "relates_to"
-    },
-    {
-      "id": "e18",
-      "source": "knn_algorithm",
-      "target": "cross_validation",
-      "relation": "relates_to"
-    },
-    {
-      "id": "e19",
-      "source": "numpy_array_ops",
-      "target": "data_augmentation",
+      "source": "mlp_algorithm",
+      "target": "model_persistence",
       "relation": "requires"
     }
   ],
-  "updated_at": "2026-07-10T06:37:53.039245+00:00",
-  "created_at": "2026-07-10T05:21:18.172163+00:00"
+  "updated_at": "2026-07-13T21:16:32.240332+00:00",
+  "created_at": "2026-07-13T21:15:56.846028+00:00"
 }

@@ -1,0 +1,24 @@
+/** 调试用：MNIST 手写数字识别宏观问答预设答案（跳过用户画像提问） */
+export const MNIST_DEBUG_PROFILE_ANSWERS: Record<string, string> = {
+  project_understanding:
+    '这个项目要把手写数字图片分类成 0–9。输入是 MNIST 里的灰度数字图像（或对应像素数组），输出是模型预测的类别（0 到 9 中的一个数字）。大致流程是：加载数据 → 预处理/归一化 → 划分训练测试集 → 用 KNN 或简单神经网络训练 → 用准确率评估，再视情况调参。',
+  prior_programming:
+    '学过 Python 基础（变量、函数、列表/字典、简单类），能写读写文件和基础脚本。用过 Jupyter Notebook，做过一些数据处理小练习，但没做过完整的机器学习项目，对工程化代码还不熟。',
+  prior_domain:
+    '了解监督学习、分类、训练/测试集这些概念，听过 KNN 和神经网络，但自己几乎没训练过模型。接触过 NumPy 一点数组操作，scikit-learn 只用过很少，对超参数、交叉验证、模型保存还不熟。',
+  learning_goal:
+    '希望跑通一整条分类流水线：数据加载、预处理、训练、评估、简单调参。理解 KNN 和简单 MLP 的适用场景与差异，能看懂主要代码在做什么，最后能独立复现一个可用的 baseline（准确率别太差就行）。',
+  learning_style:
+    '每天大约 1–2 小时。喜欢先有一小段例子再自己改，遇到卡住时要提示和引导，不要直接给完整答案。希望按步骤推进：先把数据跑通，再训练模型，最后再调参优化。',
+  concerns:
+    '最担心：环境/依赖装不好；fetch_openml 加载 MNIST 和数据形状搞不清；不知道怎么选 K 值或网络结构；调参时容易盲目试；评估指标和“过拟合”还说不明白。调试报错时也经常不知道从哪查起。',
+}
+
+export const DEBUG_PROFILE_ANSWER_ORDER = [
+  'project_understanding',
+  'prior_programming',
+  'prior_domain',
+  'learning_goal',
+  'learning_style',
+  'concerns',
+] as const

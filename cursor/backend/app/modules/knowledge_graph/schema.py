@@ -43,6 +43,7 @@ class GraphStatusResponse(BaseModel):
     session_id: str
     framework_ready: bool
     graph_ready: bool
+    graph_pending: bool = False
     node_count: int = 0
     edge_count: int = 0
     project_name: str | None = None

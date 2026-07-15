@@ -8,6 +8,7 @@ from app.modules.project_parser.schema import (
     TaskQaRequest,
     TaskQaResponse,
 )
+from app.modules.project_parser.background_jobs import get_job_state
 from app.modules.project_parser.service import project_parser_service
 from app.modules.project_parser.store import has_framework, load_framework
 from app.modules.project_parser.templates import (
@@ -18,12 +19,14 @@ from app.modules.project_parser.templates import (
 from app.modules.implementation.schema import (
     CodeAssistRequest,
     CodeAssistResponse,
+    CodeBlueprintResponse,
     ImplementationStatusResponse,
     PlanGenerateResponse,
     PlanResponse,
     SaveDraftRequest,
 )
 from app.modules.implementation.service import implementation_service
+from app.modules.implementation.code_blueprint_store import has_blueprint, load_blueprint
 from app.modules.knowledge_graph.project_graph_store import has_graph, load_graph
 from app.modules.knowledge_graph.schema import GraphResponse, GraphStatusResponse
 from app.modules.knowledge_graph.service import knowledge_graph_service
@@ -35,6 +38,7 @@ from app.modules.user_profiling.schema import (
     ProfileBuildResponse,
     ProfileStatusResponse,
     ProfilingReferenceStatusResponse,
+    LearningNodesListResponse,
     QuestionsResponse,
 )
 from app.modules.user_profiling.service import user_profiling_service
@@ -72,16 +76,21 @@ async def project_parse(request: ProjectParseRequest):
     if template_id:
         session_id = template_session_id(template_id)
         session_service.ensure_session(session_id, name)
-        if request.session_id is None:
-            clear_derived_session_data(session_id)
     else:
         session_id = session_service.get_or_create(request.session_id)
 
+    will_reuse = (not request.force_regenerate) and has_framework(session_id)
+    if request.force_regenerate or not will_reuse:
+        # 强制重解析 / 首次解析：清掉派生数据，避免脏文件
+        clear_derived_session_data(session_id)
+    # 复用已有解析时：不删任何后台文件（图谱/蓝图/画像/方案一并保留）
+
     try:
-        document = await project_parser_service.parse_and_save(
+        document, reused_existing = await project_parser_service.parse_and_save(
             session_id,
             name,
             request.project_hint,
+            force_regenerate=request.force_regenerate,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -95,7 +104,11 @@ async def project_parse(request: ProjectParseRequest):
     session_service.add_message(
         session_id,
         "assistant",
-        f"（系统）已生成并保存项目解析体系：{document.project_name}",
+        (
+            f"（系统）已复用已有项目解析体系：{document.project_name}"
+            if reused_existing
+            else f"（系统）已生成并保存项目解析体系：{document.project_name}"
+        ),
     )
 
     return ProjectParseResponse(
@@ -103,8 +116,13 @@ async def project_parse(request: ProjectParseRequest):
         project_name=document.project_name,
         summary=document.summary,
         framework_ready=True,
+        reused_existing=reused_existing,
         graph_ready=has_graph(session_id),
+        graph_pending=get_job_state(session_id, "graph") == "pending",
         graph_node_count=len(load_graph(session_id).nodes) if has_graph(session_id) else 0,
+        code_blueprint_ready=has_blueprint(session_id),
+        code_blueprint_pending=get_job_state(session_id, "code_blueprint") == "pending",
+        code_node_count=len(load_blueprint(session_id).code_nodes) if has_blueprint(session_id) else 0,
     )
 
 
@@ -196,7 +214,10 @@ async def user_profile_answer(request: ProfileAnswerRequest):
 @router.post("/user-profile/build", response_model=ProfileBuildResponse)
 async def user_profile_build(request: ProfileBuildRequest):
     try:
-        result = await user_profiling_service.build_profile_and_nodes(request.session_id)
+        result = await user_profiling_service.build_profile_and_nodes(
+            request.session_id,
+            force_regenerate=request.force_regenerate,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -227,6 +248,12 @@ async def user_profile_nodes(session_id: str):
     return user_profiling_service.get_reference_status(session_id)
 
 
+@router.get("/user-profile/{session_id}/learning-nodes", response_model=LearningNodesListResponse)
+async def user_profile_learning_nodes(session_id: str):
+    """返回学习节点列表，供节点页与代码页展示。"""
+    return user_profiling_service.get_learning_nodes(session_id)
+
+
 @router.get("/knowledge-graph/{session_id}/status", response_model=GraphStatusResponse)
 async def knowledge_graph_status(session_id: str):
     return knowledge_graph_service.get_status(session_id)
@@ -246,9 +273,12 @@ async def knowledge_graph_layers(session_id: str):
 
 
 @router.post("/knowledge-graph/{session_id}/build", response_model=GraphResponse)
-async def knowledge_graph_build(session_id: str):
+async def knowledge_graph_build(session_id: str, force_regenerate: bool = False):
     try:
-        graph = await knowledge_graph_service.build_from_session(session_id)
+        graph = await knowledge_graph_service.build_from_session(
+            session_id,
+            force_regenerate=force_regenerate,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -272,10 +302,43 @@ async def implementation_plan(session_id: str):
     return implementation_service.get_plan(session_id)
 
 
-@router.post("/implementation/{session_id}/generate-plan", response_model=PlanGenerateResponse)
-async def implementation_generate_plan(session_id: str):
+@router.get("/implementation/{session_id}/code-blueprint", response_model=CodeBlueprintResponse)
+async def implementation_code_blueprint(session_id: str):
+    return implementation_service.get_code_blueprint(session_id)
+
+
+@router.post("/implementation/{session_id}/code-blueprint/build", response_model=CodeBlueprintResponse)
+async def implementation_code_blueprint_build(
+    session_id: str,
+    force_regenerate: bool = False,
+):
     try:
-        return await implementation_service.generate_plan(session_id)
+        return await implementation_service.rebuild_code_blueprint(
+            session_id,
+            force_regenerate=force_regenerate,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except httpx.HTTPStatusError as exc:
+        from app.core.llm_errors import format_llm_http_error
+
+        raise HTTPException(status_code=502, detail=format_llm_http_error(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"代码蓝图生成失败：{exc}") from exc
+
+
+@router.post("/implementation/{session_id}/generate-plan", response_model=PlanGenerateResponse)
+async def implementation_generate_plan(
+    session_id: str,
+    force_regenerate: bool = False,
+):
+    try:
+        return await implementation_service.generate_plan(
+            session_id,
+            force_regenerate=force_regenerate,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:

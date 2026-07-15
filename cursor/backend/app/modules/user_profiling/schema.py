@@ -89,6 +89,7 @@ class ProfileAnswerResponse(BaseModel):
 
 class ProfileBuildRequest(BaseModel):
     session_id: str
+    force_regenerate: bool = False  # True：强制重生成画像与节点
 
 
 class ProfileBuildResponse(BaseModel):
@@ -112,3 +113,11 @@ class ProfilingReferenceStatusResponse(BaseModel):
     node_count: int = 0
     current_node_id: str | None = None
     current_node_title: str | None = None
+
+
+class LearningNodesListResponse(BaseModel):
+    """学习节点列表（供页面 3/4 展示整理内容）。"""
+
+    session_id: str
+    nodes_ready: bool
+    nodes: list[LearningNode] = Field(default_factory=list)

@@ -1,36 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MacroQuestion } from '../types'
 import {
+  DEBUG_PROFILE_ANSWER_ORDER,
+  MNIST_DEBUG_PROFILE_ANSWERS,
+} from '../data/debugProfileAnswers'
+import {
   buildUserProfile,
   fetchProfileQuestions,
   fetchProfileStatus,
   submitProfileAnswer,
 } from '../services/api'
 
-const REFERENCE_FIELDS = [
-  'experience_level — 水平（初学者/进阶/高级）',
-  'project_understanding — 项目理解',
-  'prior_knowledge / knowledge_gaps — 已掌握与待补强',
-  'learning_preferences / learning_goals — 偏好与目标',
-  'concerns — 顾虑与难点',
-  'summary — 画像摘要',
-]
-
-const NODE_FIELDS = [
-  'order / title — 节点序号与标题',
-  'summary — 本步要建立的能力或理解',
-  'guiding_question — 引导思考问题（不给答案）',
-  'focus_skills — 相关技能',
-  'related_sections — 关联八段解析 id',
-  'status — 进度（未开始/进行中/已完成）',
-]
-
 interface Props {
   sessionId: string | null
   frameworkReady: boolean
+  projectName?: string
+  onNodesReady?: () => void
 }
 
-export default function UserProfilingPanel({ sessionId, frameworkReady }: Props) {
+export default function UserProfilingPanel({
+  sessionId,
+  frameworkReady,
+  projectName,
+  onNodesReady,
+}: Props) {
   const [questions, setQuestions] = useState<MacroQuestion[]>([])
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [currentId, setCurrentId] = useState<string | null>(null)
@@ -46,8 +39,8 @@ export default function UserProfilingPanel({ sessionId, frameworkReady }: Props)
   })
   const [loading, setLoading] = useState(false)
   const [building, setBuilding] = useState(false)
+  const [debugging, setDebugging] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fieldsExpanded, setFieldsExpanded] = useState(false)
 
   const currentQuestion = useMemo(
     () => questions.find((q) => q.id === currentId) ?? null,
@@ -116,12 +109,12 @@ export default function UserProfilingPanel({ sessionId, frameworkReady }: Props)
     }
   }, [sessionId, currentId, draft, loading])
 
-  const handleBuild = useCallback(async () => {
+  const handleBuild = useCallback(async (forceRegenerate = false) => {
     if (!sessionId || building) return
     setBuilding(true)
     setError(null)
     try {
-      const res = await buildUserProfile(sessionId)
+      const res = await buildUserProfile(sessionId, forceRegenerate)
       setStatus((prev) => ({
         ...prev,
         profileReady: res.profile_ready,
@@ -129,12 +122,59 @@ export default function UserProfilingPanel({ sessionId, frameworkReady }: Props)
         nodeCount: res.node_count,
         profileSummary: res.profile_summary,
       }))
+      if (res.profile_ready && res.nodes_ready) onNodesReady?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : '生成失败')
     } finally {
       setBuilding(false)
     }
-  }, [sessionId, building])
+  }, [sessionId, building, onNodesReady])
+
+  /** 调试：自动填入 MNIST 预设答案 → 生成画像/节点 → 进入节点页 */
+  const handleDebugSkip = useCallback(async () => {
+    if (!sessionId || debugging || building) return
+    setDebugging(true)
+    setError(null)
+    try {
+      const filled: Record<string, string> = { ...answers }
+      for (const qid of DEBUG_PROFILE_ANSWER_ORDER) {
+        const text = MNIST_DEBUG_PROFILE_ANSWERS[qid]
+        if (!text) continue
+        await submitProfileAnswer({
+          session_id: sessionId,
+          question_id: qid,
+          answer: text,
+        })
+        filled[qid] = text
+      }
+      setAnswers(filled)
+      setStatus((prev) => ({
+        ...prev,
+        answered: DEBUG_PROFILE_ANSWER_ORDER.length,
+        total: DEBUG_PROFILE_ANSWER_ORDER.length,
+        allAnswered: true,
+      }))
+      setCurrentId(null)
+
+      setBuilding(true)
+      // 有则复用；无则按刚填入的答案生成
+      const res = await buildUserProfile(sessionId, false)
+      setStatus((prev) => ({
+        ...prev,
+        profileReady: res.profile_ready,
+        nodesReady: res.nodes_ready,
+        nodeCount: res.node_count,
+        profileSummary: res.profile_summary,
+      }))
+      if (res.profile_ready && res.nodes_ready) onNodesReady?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '调试跳过失败')
+      await refresh()
+    } finally {
+      setBuilding(false)
+      setDebugging(false)
+    }
+  }, [sessionId, debugging, building, answers, onNodesReady, refresh])
 
   if (!frameworkReady || !sessionId) {
     return (
@@ -152,14 +192,27 @@ export default function UserProfilingPanel({ sessionId, frameworkReady }: Props)
     )
   }
 
+  const busy = loading || building || debugging
+
   return (
     <div className="flex flex-col h-full">
       <div className="panel-header">
-        <span>👤</span> 用户画像
-        <span className="ml-auto text-xs text-pla-muted">
+        <span>💡</span> {projectName ? projectName : '引导思考'}
+        <span className="ml-auto text-xs text-pla-muted flex items-center gap-2">
           {status.profileReady && status.nodesReady
-            ? '参考文件已就绪'
+            ? '节点已生成'
             : `宏观问答 ${status.answered}/${status.total}`}
+          {!status.profileReady && (
+            <button
+              type="button"
+              onClick={() => void handleDebugSkip()}
+              disabled={busy}
+              title="自动填入 MNIST 调试答案并生成画像/节点"
+              className="text-[10px] px-2 py-0.5 rounded border border-amber-500/40 text-amber-300/90 hover:bg-amber-500/10 disabled:opacity-40"
+            >
+              {debugging || building ? '调试跳过中…' : '调试跳过问答'}
+            </button>
+          )}
         </span>
       </div>
 
@@ -168,10 +221,13 @@ export default function UserProfilingPanel({ sessionId, frameworkReady }: Props)
 
         <section className="rounded-xl border border-pla-border/60 bg-pla-panel/30 p-4 space-y-2">
           <p className="text-sm text-pla-muted leading-relaxed">
-            完成宏观问答后，系统将生成<strong className="text-pla-text font-normal">用户画像</strong>
-            与<strong className="text-pla-text font-normal">学习节点</strong>
-            两份后台参考文件（JSON + Markdown），内容不在此展示，供答疑与代码辅助使用。
+            通过一系列问题启发有序思考：系统将识别你的意图，并生成用户画像与学习节点，增强学习记忆。
           </p>
+          {!status.profileReady && (
+            <p className="text-[11px] text-amber-300/80 leading-relaxed">
+              调试：可点「调试跳过问答」，自动填入手写数字识别预设答案并生成节点。
+            </p>
+          )}
         </section>
 
         {!status.profileReady && currentQuestion && (
@@ -193,17 +249,27 @@ export default function UserProfilingPanel({ sessionId, frameworkReady }: Props)
               onChange={(e) => setDraft(e.target.value)}
               rows={4}
               placeholder={currentQuestion.placeholder}
-              disabled={loading}
+              disabled={busy}
               className="w-full rounded-lg border border-pla-border bg-pla-bg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-pla-accent disabled:opacity-50"
             />
-            <button
-              type="button"
-              onClick={() => void handleSubmitAnswer()}
-              disabled={loading || !draft.trim()}
-              className="px-5 py-2 rounded-lg bg-pla-accent hover:bg-pla-accentHover disabled:opacity-40 text-sm font-medium transition-colors"
-            >
-              {loading ? '保存中…' : '保存并下一题'}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleSubmitAnswer()}
+                disabled={busy || !draft.trim()}
+                className="px-5 py-2 rounded-lg bg-pla-accent hover:bg-pla-accentHover disabled:opacity-40 text-sm font-medium transition-colors"
+              >
+                {loading ? '保存中…' : '保存并下一题'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDebugSkip()}
+                disabled={busy}
+                className="px-4 py-2 rounded-lg border border-amber-500/40 text-amber-300 text-sm hover:bg-amber-500/10 disabled:opacity-40"
+              >
+                {debugging || building ? '正在跳过…' : '调试：填入预设答案并跳过'}
+              </button>
+            </div>
           </section>
         )}
 
@@ -215,7 +281,7 @@ export default function UserProfilingPanel({ sessionId, frameworkReady }: Props)
             <button
               type="button"
               onClick={() => void handleBuild()}
-              disabled={building}
+              disabled={building || debugging}
               className="px-5 py-2 rounded-lg bg-pla-accent hover:bg-pla-accentHover disabled:opacity-40 text-sm font-medium transition-colors"
             >
               {building ? '正在生成参考文件…' : '生成画像与学习节点参考文件'}
@@ -225,45 +291,27 @@ export default function UserProfilingPanel({ sessionId, frameworkReady }: Props)
 
         {status.profileReady && status.nodesReady && (
           <section className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
-            <div className="text-sm font-medium text-emerald-300">✓ 参考文件已保存至后台</div>
+            <div className="text-sm font-medium text-emerald-300">✓ 画像与学习节点已生成</div>
             <p className="text-sm text-pla-muted leading-relaxed">
-              用户画像与学习节点（共 {status.nodeCount} 个节点）已就绪，可用于任务答疑与代码辅助。
+              共 {status.nodeCount} 个学习节点。可在右侧继续对话式提问，或进入下一页查看节点整理内容。
             </p>
+            {onNodesReady && (
+              <button
+                type="button"
+                onClick={onNodesReady}
+                className="px-4 py-2 rounded-lg bg-pla-accent hover:bg-pla-accentHover text-sm font-medium"
+              >
+                查看学习节点 →
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => void handleBuild()}
-              disabled={building}
-              className="text-xs text-pla-accent hover:underline disabled:opacity-40"
+              onClick={() => void handleBuild(true)}
+              disabled={building || debugging}
+              className="block text-xs text-pla-accent hover:underline disabled:opacity-40"
             >
               {building ? '重新生成中…' : '重新生成参考文件'}
             </button>
-            <button
-              type="button"
-              onClick={() => setFieldsExpanded((v) => !v)}
-              className="block text-xs text-pla-accent hover:underline"
-            >
-              {fieldsExpanded ? '收起' : '参考文件包含哪些字段？'}
-            </button>
-            {fieldsExpanded && (
-              <div className="grid gap-3 pt-1 sm:grid-cols-2">
-                <div>
-                  <div className="text-xs font-medium text-pla-text mb-1">用户画像</div>
-                  <ul className="text-xs text-pla-muted space-y-1 list-disc list-inside">
-                    {REFERENCE_FIELDS.map((f) => (
-                      <li key={f}>{f}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-pla-text mb-1">学习节点（每节点）</div>
-                  <ul className="text-xs text-pla-muted space-y-1 list-disc list-inside">
-                    {NODE_FIELDS.map((f) => (
-                      <li key={f}>{f}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
           </section>
         )}
       </div>

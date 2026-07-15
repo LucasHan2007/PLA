@@ -64,6 +64,7 @@ class ProjectParseRequest(BaseModel):
     project_hint: str = ""
     session_id: str | None = None
     project_template_id: str | None = None
+    force_regenerate: bool = False  # True：强制 LLM 重解析并覆盖原文件
 
 
 class ProjectParseResponse(BaseModel):
@@ -71,5 +72,10 @@ class ProjectParseResponse(BaseModel):
     project_name: str
     summary: str
     framework_ready: bool = True
+    reused_existing: bool = False
     graph_ready: bool = False
+    graph_pending: bool = False
     graph_node_count: int = 0
+    code_blueprint_ready: bool = False
+    code_blueprint_pending: bool = False
+    code_node_count: int = 0

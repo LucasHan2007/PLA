@@ -17,8 +17,13 @@ export interface ProjectParseResult {
   project_name: string
   summary: string
   framework_ready: boolean
+  reused_existing?: boolean
   graph_ready?: boolean
+  graph_pending?: boolean
   graph_node_count?: number
+  code_blueprint_ready?: boolean
+  code_blueprint_pending?: boolean
+  code_node_count?: number
 }
 
 export interface KnowledgeGraphNode {
@@ -49,6 +54,7 @@ export interface GraphStatus {
   session_id: string
   framework_ready: boolean
   graph_ready: boolean
+  graph_pending?: boolean
   node_count: number
   edge_count: number
   project_name: string | null
@@ -150,7 +156,34 @@ export interface ImplementationStatus {
   profile_ready: boolean
   nodes_ready: boolean
   plan_ready: boolean
+  code_blueprint_ready?: boolean
+  code_blueprint_pending?: boolean
+  code_node_count?: number
   project_name: string | null
+}
+
+export interface CodeSegment {
+  type: 'prose' | 'code'
+  content: string
+  language?: string
+  label?: string
+}
+
+export interface CodeNode {
+  id: string
+  order: number
+  title: string
+  related_sections: string[]
+  related_learning_node_ids?: string[]
+  segments: CodeSegment[]
+}
+
+export interface CodeBlueprint {
+  session_id: string
+  project_name: string
+  summary: string
+  language: string
+  code_nodes: CodeNode[]
 }
 
 export type CodeAssistMode = 'understand' | 'completion'

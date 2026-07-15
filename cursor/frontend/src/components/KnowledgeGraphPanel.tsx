@@ -26,25 +26,31 @@ export default function KnowledgeGraphPanel({ sessionId, frameworkReady }: Props
   const [rebuilding, setRebuilding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
 
   const refresh = useCallback(async () => {
     if (!sessionId || !frameworkReady) return
     setError(null)
     try {
-      const [st, gr, ly] = await Promise.all([
-        fetchGraphStatus(sessionId),
-        fetchKnowledgeGraph(sessionId),
-        fetchKnowledgeGraphLayers(sessionId),
-      ])
+      const st = await fetchGraphStatus(sessionId)
+      setPending(!!st.graph_pending)
       setStatus({
         graphReady: st.graph_ready,
         nodeCount: st.node_count,
         edgeCount: st.edge_count,
         summary: st.summary,
       })
-      setGraph(gr.graph)
-      setLayers(ly.layers)
-      setSelectedId(null)
+      if (st.graph_ready) {
+        const [gr, ly] = await Promise.all([
+          fetchKnowledgeGraph(sessionId),
+          fetchKnowledgeGraphLayers(sessionId),
+        ])
+        setGraph(gr.graph)
+        setLayers(ly.layers)
+      } else {
+        setGraph(null)
+        setLayers([])
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败')
     }
@@ -53,6 +59,13 @@ export default function KnowledgeGraphPanel({ sessionId, frameworkReady }: Props
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // 后台生成中自动轮询
+  useEffect(() => {
+    if (!sessionId || !frameworkReady || status.graphReady || !pending) return
+    const id = window.setInterval(() => void refresh(), 2500)
+    return () => window.clearInterval(id)
+  }, [sessionId, frameworkReady, status.graphReady, pending, refresh])
 
   const handleRebuild = useCallback(async () => {
     if (!sessionId || rebuilding) return
@@ -98,11 +111,15 @@ export default function KnowledgeGraphPanel({ sessionId, frameworkReady }: Props
       <div className="panel-header">
         <span>🧠</span> 基础知识图谱
         <span className="ml-auto text-xs text-pla-muted flex items-center gap-3">
-          {status.graphReady ? `${status.nodeCount} 节点 · ${status.edgeCount} 依赖` : '生成中…'}
+          {status.graphReady
+            ? `${status.nodeCount} 节点 · ${status.edgeCount} 依赖`
+            : pending
+              ? '后台生成中…'
+              : '未就绪'}
           <button
             type="button"
             onClick={() => void handleRebuild()}
-            disabled={rebuilding}
+            disabled={rebuilding || pending}
             className="text-pla-accent hover:underline disabled:opacity-40"
           >
             {rebuilding ? '重建中…' : '重新抽取'}
@@ -115,7 +132,15 @@ export default function KnowledgeGraphPanel({ sessionId, frameworkReady }: Props
           <p className="text-sm text-red-400 px-3 py-2 shrink-0 border-b border-pla-border/40">{error}</p>
         )}
 
-        {graph && graph.nodes.length > 0 ? (
+        {pending && !status.graphReady && (
+          <div className="flex-1 flex items-center justify-center p-6">
+            <p className="text-sm text-amber-300/90 text-center animate-pulse leading-relaxed">
+              通用图谱正在后台生成，请稍候…完成后将自动刷新。
+            </p>
+          </div>
+        )}
+
+        {!pending && graph && graph.nodes.length > 0 ? (
           <div className="flex-1 min-h-0 flex">
             <div className="flex-1 min-w-0 min-h-0 p-1.5">
               <KnowledgeGraphCanvas
@@ -134,7 +159,7 @@ export default function KnowledgeGraphPanel({ sessionId, frameworkReady }: Props
               />
             </div>
           </div>
-        ) : (
+        ) : !pending ? (
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center space-y-2 max-w-sm">
               <p className="text-sm text-pla-muted">
@@ -147,7 +172,7 @@ export default function KnowledgeGraphPanel({ sessionId, frameworkReady }: Props
               )}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

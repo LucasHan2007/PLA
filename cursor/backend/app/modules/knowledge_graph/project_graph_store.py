@@ -44,3 +44,9 @@ def load_graph(session_id: str) -> ProjectKnowledgeGraph | None:
 
 def has_graph(session_id: str) -> bool:
     return json_path(session_id).is_file()
+
+
+def clear_graph(session_id: str) -> None:
+    path = json_path(session_id)
+    if path.is_file():
+        path.unlink()

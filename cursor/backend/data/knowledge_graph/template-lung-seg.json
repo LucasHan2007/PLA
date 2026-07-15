@@ -1,0 +1,253 @@
+{
+  "session_id": "template-lung-seg",
+  "project_name": "肺部病灶语义分割",
+  "summary": "本项目知识图谱以Python和PyTorch基础为起点，分支为医学图像数据处理（SimpleITK与CT预处理）和深度学习模型构建（U-Net与Dice Loss），最终汇聚于模型训练验证与推理后处理，并延伸至数据增强与学习率调度等进阶优化策略。",
+  "nodes": [
+    {
+      "id": "python_basics",
+      "label": "Python基础",
+      "description": "Python基础语法与编程逻辑",
+      "category": "concept",
+      "related_sections": [
+        "knowledge_skills"
+      ],
+      "importance": 1
+    },
+    {
+      "id": "pytorch_tensor_ops",
+      "label": "PyTorch张量操作",
+      "description": "PyTorch张量创建、维度变换与GPU转移",
+      "category": "skill",
+      "related_sections": [
+        "knowledge_skills"
+      ],
+      "importance": 1
+    },
+    {
+      "id": "medical_image_format",
+      "label": "医学图像格式与物理意义",
+      "description": "NIfTI/DICOM格式解析与CT HU值物理意义",
+      "category": "concept",
+      "related_sections": [
+        "problem_definition",
+        "knowledge_skills"
+      ],
+      "importance": 2
+    },
+    {
+      "id": "simpleitk_usage",
+      "label": "SimpleITK库使用",
+      "description": "使用SimpleITK读取医学图像与空间重采样",
+      "category": "tool",
+      "related_sections": [
+        "data_flow",
+        "implementation_plan"
+      ],
+      "importance": 2
+    },
+    {
+      "id": "ct_preprocessing",
+      "label": "CT图像预处理",
+      "description": "CT图像HU值截断、Min-Max归一化与3D转2D切片化",
+      "category": "skill",
+      "related_sections": [
+        "data_flow",
+        "task_decomposition"
+      ],
+      "importance": 2
+    },
+    {
+      "id": "pytorch_dataset",
+      "label": "PyTorch数据加载",
+      "description": "构建PyTorch Dataset类与DataLoader批次加载机制",
+      "category": "skill",
+      "related_sections": [
+        "data_flow",
+        "task_decomposition",
+        "implementation_plan"
+      ],
+      "importance": 1
+    },
+    {
+      "id": "unet_architecture",
+      "label": "U-Net架构原理",
+      "description": "U-Net编码器-解码器架构与跳跃连接原理",
+      "category": "concept",
+      "related_sections": [
+        "knowledge_skills",
+        "task_decomposition"
+      ],
+      "importance": 2
+    },
+    {
+      "id": "pytorch_nn_module",
+      "label": "PyTorch网络构建",
+      "description": "使用PyTorch nn.Module搭建自定义神经网络层",
+      "category": "skill",
+      "related_sections": [
+        "knowledge_skills",
+        "task_decomposition"
+      ],
+      "importance": 1
+    },
+    {
+      "id": "dice_loss",
+      "label": "Dice Loss",
+      "description": "Dice Loss数学推导与正负样本极度不平衡处理",
+      "category": "concept",
+      "related_sections": [
+        "knowledge_skills",
+        "task_decomposition"
+      ],
+      "importance": 2
+    },
+    {
+      "id": "model_training_loop",
+      "label": "模型训练与验证循环",
+      "description": "编写前向传播、反向传播、验证逻辑与最优权重保存",
+      "category": "skill",
+      "related_sections": [
+        "task_decomposition",
+        "implementation_plan",
+        "run_verify_debug"
+      ],
+      "importance": 2
+    },
+    {
+      "id": "image_segmentation_metrics",
+      "label": "分割评估指标",
+      "description": "Dice系数(DSC)与IoU等语义分割重合度评估指标",
+      "category": "concept",
+      "related_sections": [
+        "data_flow",
+        "knowledge_skills"
+      ],
+      "importance": 2
+    },
+    {
+      "id": "inference_postprocessing",
+      "label": "推理与后处理",
+      "description": "模型推理、Sigmoid阈值化、连通域过滤与3D重组",
+      "category": "skill",
+      "related_sections": [
+        "data_flow",
+        "task_decomposition"
+      ],
+      "importance": 2
+    },
+    {
+      "id": "data_augmentation",
+      "label": "医学图像数据增强",
+      "description": "随机旋转、弹性形变等增强策略以降低过拟合",
+      "category": "skill",
+      "related_sections": [
+        "iterative_optimization"
+      ],
+      "importance": 3
+    },
+    {
+      "id": "learning_rate_scheduling",
+      "label": "学习率调度策略",
+      "description": "学习率预热(Warmup)与余弦退火(Cosine Annealing)",
+      "category": "skill",
+      "related_sections": [
+        "iterative_optimization"
+      ],
+      "importance": 3
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "python_basics",
+      "target": "pytorch_tensor_ops",
+      "relation": "requires"
+    },
+    {
+      "id": "e2",
+      "source": "pytorch_tensor_ops",
+      "target": "pytorch_nn_module",
+      "relation": "requires"
+    },
+    {
+      "id": "e3",
+      "source": "pytorch_tensor_ops",
+      "target": "pytorch_dataset",
+      "relation": "requires"
+    },
+    {
+      "id": "e4",
+      "source": "medical_image_format",
+      "target": "simpleitk_usage",
+      "relation": "requires"
+    },
+    {
+      "id": "e5",
+      "source": "medical_image_format",
+      "target": "ct_preprocessing",
+      "relation": "requires"
+    },
+    {
+      "id": "e6",
+      "source": "simpleitk_usage",
+      "target": "ct_preprocessing",
+      "relation": "requires"
+    },
+    {
+      "id": "e7",
+      "source": "ct_preprocessing",
+      "target": "pytorch_dataset",
+      "relation": "requires"
+    },
+    {
+      "id": "e8",
+      "source": "pytorch_nn_module",
+      "target": "unet_architecture",
+      "relation": "requires"
+    },
+    {
+      "id": "e9",
+      "source": "unet_architecture",
+      "target": "model_training_loop",
+      "relation": "requires"
+    },
+    {
+      "id": "e10",
+      "source": "dice_loss",
+      "target": "model_training_loop",
+      "relation": "requires"
+    },
+    {
+      "id": "e11",
+      "source": "image_segmentation_metrics",
+      "target": "model_training_loop",
+      "relation": "relates_to"
+    },
+    {
+      "id": "e12",
+      "source": "pytorch_dataset",
+      "target": "model_training_loop",
+      "relation": "requires"
+    },
+    {
+      "id": "e13",
+      "source": "model_training_loop",
+      "target": "inference_postprocessing",
+      "relation": "requires"
+    },
+    {
+      "id": "e14",
+      "source": "pytorch_dataset",
+      "target": "data_augmentation",
+      "relation": "requires"
+    },
+    {
+      "id": "e15",
+      "source": "model_training_loop",
+      "target": "learning_rate_scheduling",
+      "relation": "requires"
+    }
+  ],
+  "updated_at": "2026-07-13T21:16:33.885920+00:00",
+  "created_at": "2026-07-13T21:16:33.885920+00:00"
+}

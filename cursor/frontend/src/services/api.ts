@@ -1,5 +1,6 @@
 import type {
   CodeAssistMode,
+  CodeBlueprint,
   CodeDraft,
   GraphStatus,
   ImplementationPlan,
@@ -30,6 +31,7 @@ export async function sendProjectParse(payload: {
   project_hint?: string
   session_id?: string | null
   project_template_id?: string | null
+  force_regenerate?: boolean
 }): Promise<ProjectParseResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS)
@@ -43,6 +45,7 @@ export async function sendProjectParse(payload: {
         project_hint: payload.project_hint ?? '',
         session_id: payload.session_id ?? null,
         project_template_id: payload.project_template_id ?? null,
+        force_regenerate: payload.force_regenerate ?? false,
       }),
     })
     if (!res.ok) throw new Error(await readError(res))
@@ -145,7 +148,10 @@ export async function submitProfileAnswer(payload: {
   return res.json()
 }
 
-export async function buildUserProfile(sessionId: string): Promise<ProfileBuildResult> {
+export async function buildUserProfile(
+  sessionId: string,
+  forceRegenerate = false,
+): Promise<ProfileBuildResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROFILE_BUILD_TIMEOUT_MS)
   try {
@@ -153,7 +159,10 @@ export async function buildUserProfile(sessionId: string): Promise<ProfileBuildR
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify({ session_id: sessionId }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        force_regenerate: forceRegenerate,
+      }),
     })
     if (!res.ok) throw new Error(await readError(res))
     return res.json()
@@ -183,6 +192,17 @@ export async function fetchLearningNodes(sessionId: string): Promise<ProfilingRe
   return res.json()
 }
 
+/** 学习节点列表（含 title/summary 等，供节点页展示） */
+export async function fetchLearningNodesList(sessionId: string): Promise<{
+  session_id: string
+  nodes_ready: boolean
+  nodes: import('../types').LearningNode[]
+}> {
+  const res = await fetch(`${API}/user-profile/${sessionId}/learning-nodes`)
+  if (!res.ok) throw new Error(await readError(res))
+  return res.json()
+}
+
 export async function fetchGraphStatus(sessionId: string): Promise<GraphStatus> {
   const res = await fetch(`${API}/knowledge-graph/${sessionId}/status`)
   if (!res.ok) throw new Error(await readError(res))
@@ -207,14 +227,18 @@ export async function fetchKnowledgeGraphLayers(sessionId: string): Promise<{
   return res.json()
 }
 
-export async function rebuildKnowledgeGraph(sessionId: string): Promise<{
+export async function rebuildKnowledgeGraph(
+  sessionId: string,
+  forceRegenerate = true,
+): Promise<{
   session_id: string
   graph: ProjectKnowledgeGraph
 }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS)
   try {
-    const res = await fetch(`${API}/knowledge-graph/${sessionId}/build`, {
+    const q = forceRegenerate ? '?force_regenerate=true' : ''
+    const res = await fetch(`${API}/knowledge-graph/${sessionId}/build${q}`, {
       method: 'POST',
       signal: controller.signal,
     })
@@ -247,7 +271,47 @@ export async function fetchImplementationPlan(sessionId: string): Promise<{
   return res.json()
 }
 
-export async function generateImplementationPlan(sessionId: string): Promise<{
+export async function fetchCodeBlueprint(sessionId: string): Promise<{
+  session_id: string
+  blueprint: CodeBlueprint | null
+}> {
+  const res = await fetch(`${API}/implementation/${sessionId}/code-blueprint`)
+  if (!res.ok) throw new Error(await readError(res))
+  return res.json()
+}
+
+export async function rebuildCodeBlueprint(
+  sessionId: string,
+  forceRegenerate = true,
+): Promise<{
+  session_id: string
+  blueprint: CodeBlueprint | null
+}> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS)
+  try {
+    const q = forceRegenerate ? '?force_regenerate=true' : ''
+    const res = await fetch(`${API}/implementation/${sessionId}/code-blueprint/build${q}`, {
+      method: 'POST',
+      signal: controller.signal,
+    })
+    if (!res.ok) throw new Error(await readError(res))
+    return res.json()
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('代码蓝图生成超时')
+    }
+    if (err instanceof Error) throw err
+    throw new Error('无法连接后端')
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+export async function generateImplementationPlan(
+  sessionId: string,
+  forceRegenerate = false,
+): Promise<{
   session_id: string
   plan: ImplementationPlan
   message: string
@@ -255,7 +319,8 @@ export async function generateImplementationPlan(sessionId: string): Promise<{
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS)
   try {
-    const res = await fetch(`${API}/implementation/${sessionId}/generate-plan`, {
+    const q = forceRegenerate ? '?force_regenerate=true' : ''
+    const res = await fetch(`${API}/implementation/${sessionId}/generate-plan${q}`, {
       method: 'POST',
       signal: controller.signal,
     })

@@ -1,0 +1,105 @@
+{
+  "session_id": "template-mnist",
+  "project_name": "MNIST 手写数字识别",
+  "node_count": 6,
+  "nodes": [
+    {
+      "id": "node_1",
+      "order": 1,
+      "title": "数据加载与维度探索",
+      "summary": "掌握使用scikit-learn获取标准数据集的方法，并建立对高维图像数据矩阵形状的直观理解与验证能力。",
+      "guiding_question": "当你把一张28x28的图像展平成一维数组后，整个数据集的矩阵形状会发生怎样的变化？如何通过代码切片和形状属性来验证你的猜想？",
+      "focus_skills": [
+        "数据集加载",
+        "NumPy数组操作"
+      ],
+      "related_sections": [
+        "data_flow",
+        "knowledge_skills"
+      ],
+      "status": "in_progress"
+    },
+    {
+      "id": "node_2",
+      "order": 2,
+      "title": "数据预处理与集合划分",
+      "summary": "理解像素归一化对模型收敛的数学影响，并掌握构建训练集与测试集的标准数据流转过程。",
+      "guiding_question": "为什么神经网络对输入特征的数值范围非常敏感？如果不做0-1归一化，模型的损失函数下降曲线可能会呈现什么状态？",
+      "focus_skills": [
+        "数据预处理",
+        "数据集划分"
+      ],
+      "related_sections": [
+        "data_flow",
+        "task_decomposition"
+      ],
+      "status": "not_started"
+    },
+    {
+      "id": "node_3",
+      "order": 3,
+      "title": "KNN基线构建与降维优化",
+      "summary": "理解K近邻算法在高维空间中的计算瓶颈，并学会通过降维技术平衡模型准确率与推理速度。",
+      "guiding_question": "在784维空间中计算两张图片的距离为什么会如此缓慢？如果引入PCA降维，你认为保留多少主成分能在不显著损失准确率的前提下大幅提升速度？",
+      "focus_skills": [
+        "KNN分类算法",
+        "PCA降维",
+        "模型评估"
+      ],
+      "related_sections": [
+        "implementation_plan",
+        "iterative_optimization"
+      ],
+      "status": "not_started"
+    },
+    {
+      "id": "node_4",
+      "order": 4,
+      "title": "MLP网络构建与超参数探索",
+      "summary": "掌握多层感知机的基本结构配置，并建立通过观察训练过程来调整隐藏层与学习率的调优直觉。",
+      "guiding_question": "当增加MLP的隐藏层节点数时，训练集准确率和验证集准确率分别会发生怎样的变化？如何判断模型是否开始“死记硬背”（过拟合）？",
+      "focus_skills": [
+        "MLP神经网络",
+        "Scikit-learn框架"
+      ],
+      "related_sections": [
+        "implementation_plan",
+        "run_verify_debug"
+      ],
+      "status": "not_started"
+    },
+    {
+      "id": "node_5",
+      "order": 5,
+      "title": "多维评估与错误样本剖析",
+      "summary": "超越单一准确率指标，学会通过混淆矩阵和错误样本可视化来深度诊断模型的分类盲区。",
+      "guiding_question": "如果模型整体准确率很高，但混淆矩阵显示它经常把“3”误判为“8”，你应该如何从数据特征或算法原理的角度去解释并改善这个现象？",
+      "focus_skills": [
+        "模型评估",
+        "结果可视化"
+      ],
+      "related_sections": [
+        "run_verify_debug",
+        "iterative_optimization"
+      ],
+      "status": "not_started"
+    },
+    {
+      "id": "node_6",
+      "order": 6,
+      "title": "模型持久化与推理闭环",
+      "summary": "理解模型序列化的工程意义，并掌握将训练好的模型脱离训练环境进行独立推理的完整闭环。",
+      "guiding_question": "为什么在实际生产环境中，我们通常将“模型训练”和“模型推理”拆分为两个独立的脚本？在加载保存的模型进行新图片预测时，最容易遗漏的预处理步骤是什么？",
+      "focus_skills": [
+        "模型持久化",
+        "Python基础语法"
+      ],
+      "related_sections": [
+        "implementation_plan",
+        "task_decomposition"
+      ],
+      "status": "not_started"
+    }
+  ],
+  "created_at": "2026-07-13T21:22:23.720701+00:00"
+}

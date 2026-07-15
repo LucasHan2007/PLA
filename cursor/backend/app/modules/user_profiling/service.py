@@ -4,9 +4,14 @@ from app.modules.project_parser.store import get_framework_context, has_framewor
 from app.modules.user_profiling.node_planner import node_planner
 from app.modules.user_profiling.nodes_store import get_current_node, load_learning_nodes
 from app.modules.user_profiling.profiler import profiler
-from app.modules.user_profiling.profile_store import get_profile_summary, has_user_profile
+from app.modules.user_profiling.profile_store import (
+    get_profile_summary,
+    has_user_profile,
+    load_user_profile,
+)
 from app.modules.user_profiling.question_bank import MACRO_QUESTIONS, get_question, question_ids
 from app.modules.user_profiling.schema import (
+    LearningNodesListResponse,
     ProfileAnswerResponse,
     ProfileBuildResponse,
     ProfileStatusResponse,
@@ -79,9 +84,29 @@ class UserProfilingService:
             next_question_id=self._next_unanswered(answers),
         )
 
-    async def build_profile_and_nodes(self, session_id: str) -> ProfileBuildResponse:
+    async def build_profile_and_nodes(
+        self,
+        session_id: str,
+        *,
+        force_regenerate: bool = False,
+    ) -> ProfileBuildResponse:
         if not has_framework(session_id):
             raise ValueError("请先生成并保存项目解析参考文件")
+
+        if not force_regenerate and has_user_profile(session_id) and has_learning_nodes(session_id):
+            profile = load_user_profile(session_id)
+            nodes = load_learning_nodes(session_id)
+            current = get_current_node(session_id)
+            return ProfileBuildResponse(
+                session_id=session_id,
+                profile_ready=True,
+                nodes_ready=len(nodes) > 0,
+                profile_summary=(profile.summary if profile else "") or "",
+                node_count=len(nodes),
+                current_node_id=current.id if current else None,
+                current_node_title=current.title if current else None,
+                message="已有用户画像与学习节点，已直接复用原文件。",
+            )
 
         answers = load_answers(session_id)
         answered = sum(1 for qid in question_ids() if answers.get(qid, "").strip())
@@ -124,6 +149,14 @@ class UserProfilingService:
             node_count=len(load_learning_nodes(session_id)) if nodes_ready else 0,
             current_node_id=current.id if current else None,
             current_node_title=current.title if current else None,
+        )
+
+    def get_learning_nodes(self, session_id: str) -> LearningNodesListResponse:
+        nodes = load_learning_nodes(session_id)
+        return LearningNodesListResponse(
+            session_id=session_id,
+            nodes_ready=len(nodes) > 0,
+            nodes=nodes,
         )
 
 

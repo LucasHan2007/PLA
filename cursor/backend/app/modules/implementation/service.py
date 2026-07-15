@@ -1,5 +1,7 @@
 from app.modules.implementation.behavior_analyzer import analyze_code
 from app.modules.implementation.code_assist import code_assist_service
+from app.modules.implementation.code_blueprint_extractor import code_blueprint_extractor
+from app.modules.implementation.code_blueprint_store import has_blueprint, load_blueprint
 from app.modules.implementation.plan_generator import plan_generator
 from app.modules.implementation.prompts import format_plan_context
 from app.modules.implementation.store import (
@@ -12,6 +14,7 @@ from app.modules.implementation.store import (
 from app.modules.implementation.schema import (
     CodeAssistMode,
     CodeAssistResponse,
+    CodeBlueprintResponse,
     CodeDraft,
     ImplementationStatusResponse,
     PlanGenerateResponse,
@@ -20,6 +23,7 @@ from app.modules.implementation.schema import (
 from app.modules.knowledge_graph.project_graph_store import load_graph
 from app.modules.knowledge_graph.prompts import format_graph_context
 from app.modules.pedagogy.prompts import format_node_context, format_profile_context
+from app.modules.project_parser.background_jobs import get_job_state
 from app.modules.project_parser.store import get_framework_context, has_framework, load_framework
 from app.modules.user_profiling.nodes_store import load_learning_nodes
 from app.modules.user_profiling.store import get_current_node, get_profile, has_nodes, has_profile
@@ -56,18 +60,31 @@ def _build_context_block(session_id: str, learning_node_id: str | None = None) -
             lines.append(f"- [{n.status.value}] {n.order}. {n.title}：{n.summary}")
         parts.append("\n".join(lines))
 
+    bp = load_blueprint(session_id)
+    if bp and bp.code_nodes:
+        lines = ["【代码蓝图节点】"]
+        for cn in bp.code_nodes:
+            lines.append(f"- {cn.order}. {cn.title}")
+        parts.append("\n".join(lines))
+
     return "\n\n".join(parts)
 
 
 class ImplementationService:
     def get_status(self, session_id: str) -> ImplementationStatusResponse:
         doc = load_framework(session_id)
+        bp = load_blueprint(session_id)
+        ready = has_blueprint(session_id)
+        pending = get_job_state(session_id, "code_blueprint") == "pending" and not ready
         return ImplementationStatusResponse(
             session_id=session_id,
             framework_ready=has_framework(session_id),
             profile_ready=has_profile(session_id),
             nodes_ready=has_nodes(session_id),
             plan_ready=has_plan(session_id),
+            code_blueprint_ready=ready,
+            code_blueprint_pending=pending,
+            code_node_count=len(bp.code_nodes) if bp else 0,
             project_name=doc.project_name if doc else None,
         )
 
@@ -75,7 +92,41 @@ class ImplementationService:
         state = load_state(session_id)
         return PlanResponse(session_id=session_id, plan=state.plan, drafts=state.drafts)
 
-    async def generate_plan(self, session_id: str) -> PlanGenerateResponse:
+    def get_code_blueprint(self, session_id: str) -> CodeBlueprintResponse:
+        return CodeBlueprintResponse(
+            session_id=session_id,
+            blueprint=load_blueprint(session_id),
+        )
+
+    async def rebuild_code_blueprint(
+        self,
+        session_id: str,
+        *,
+        force_regenerate: bool = False,
+    ) -> CodeBlueprintResponse:
+        if not has_framework(session_id):
+            raise ValueError("请先生成并保存项目解析参考文件")
+        bp = await code_blueprint_extractor.build_from_session(
+            session_id,
+            force_regenerate=force_regenerate,
+        )
+        return CodeBlueprintResponse(session_id=session_id, blueprint=bp)
+
+    async def generate_plan(
+        self,
+        session_id: str,
+        *,
+        force_regenerate: bool = False,
+    ) -> PlanGenerateResponse:
+        if not force_regenerate and has_plan(session_id):
+            state = load_state(session_id)
+            if state.plan is not None:
+                return PlanGenerateResponse(
+                    session_id=session_id,
+                    plan=state.plan,
+                    message="已有实现方案，已直接复用原文件。",
+                )
+
         if not has_framework(session_id):
             raise ValueError("请先生成并保存项目解析参考文件")
         if not has_profile(session_id) or not has_nodes(session_id):
